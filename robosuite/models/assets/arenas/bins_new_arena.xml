@@ -1,0 +1,91 @@
+<mujoco model="bins_arena">
+  <asset>
+    <texture builtin="gradient" height="256" rgb1=".9 .9 1." rgb2=".2 .3 .4" type="skybox" width="256"/>
+    <texture file="../textures/light-gray-floor-tile.png" type="2d" name="texplane"/>
+    <texture file="../textures/light-gray-plaster.png" type="2d" name="tex-light-gray-plaster"/>
+    <material name="floorplane" reflectance="0.01" shininess="0.0" specular="0.0" texrepeat="2 2" texture="tex-light-gray-plaster" texuniform="true"/>
+    <!-- steel legs -->
+    <texture file="../textures/steel-brushed.png" type="cube" name="tex-steel-brushed"/>
+    <material name="table_legs_metal" reflectance="0.8" shininess="0.8" texrepeat="1 1" texture="tex-steel-brushed" />
+    <!-- plaster walls -->
+    <texture file="../textures/light-gray-plaster.png" type="2d" name="tex-light-gray-plaster"/>
+    <material name="walls_mat" reflectance="0.0" shininess="0.1" specular="0.1" texrepeat="3 3" texture="tex-light-gray-plaster" texuniform="true" />
+    <!-- added table texture and material for domain randomization -->
+    <texture  name="textable" builtin="flat" height="512" width="512" rgb1="0.5 0.5 0.5" rgb2="0.5 0.5 0.5"/>
+    <material name="table_mat" texture="textable" />
+
+    <!-- bins -->
+    <texture file="../textures/light-wood.png" type="2d" name="tex-light-wood"/>
+    <texture file="../textures/dark-wood.png" type="2d" name="tex-dark-wood"/>
+    <material name="light-wood" reflectance="0" texrepeat="15 15" texture="tex-light-wood" texuniform="true"/>
+    <material name="dark-wood" reflectance="0" texrepeat="5 5" texture="tex-dark-wood" texuniform="true"/>
+    <material name="light-gray-plaster" reflectance="0" texrepeat="5 5" texture="tex-light-gray-plaster" texuniform="true"/>
+    <material name="blue-plastic" rgba="0.2 0.4 1 1" specular="0.3" shininess="0.1" reflectance="0.1"/>
+    <mesh file="../objects/meshes/bread.stl" name="bread_mesh" scale="0.8 0.8 0.8"/>
+    <texture file="../textures/bread.png" type="2d" name="tex-bread" />
+    <material name="bread" reflectance="0.7" texrepeat="15 15" texture="tex-bread" texuniform="true"/>
+  </asset>
+
+  <worldbody>
+
+    <geom condim="3" group="1" material="floorplane" name="floor" pos="0 0 0" size="3 3 .125" type="plane"/>
+    <!-- Walls (visual only) -->
+    <geom pos="-1.25 2.25 1.5" quat="0.6532815 0.6532815 0.2705981 0.2705981" size="1.06 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_leftcorner_visual" material="walls_mat"/>
+    <geom pos="-1.25 -2.25 1.5" quat="0.6532815 0.6532815 -0.2705981 -0.2705981" size="1.06 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_rightcorner_visual" material="walls_mat"/>
+    <geom pos="1.25 3 1.5" quat="0.7071 0.7071 0 0" size="1.75 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_left_visual" material="walls_mat"/>
+    <geom pos="1.25 -3 1.5" quat="0.7071 -0.7071 0 0" size="1.75 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_right_visual" material="walls_mat"/>
+    <geom pos="-2 0 1.5" quat="0.5 0.5 0.5 0.5" size="1.5 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_rear_visual" material="walls_mat"/>
+    <geom pos="3 0 1.5" quat="0.5 0.5 -0.5 -0.5" size="3 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_front_visual" material="walls_mat"/>
+
+    <!-- Bin body template -->
+    <body name="bin1" pos="0.1 -0.25 0.8">
+    <!-- Bin floor -->
+
+    <geom name="bin1_bottom" type="box" size="0.13 0.13 0.02" pos="0 0.05 0.1" material="blue-plastic" group="1"/>
+
+    <!-- Bin walls -->
+    <geom name="bin1_wall_back" type="box" size="0.13 0.013 0.05" pos="0 0.175 0.1" material="blue-plastic" group="1"/>
+    <geom name="bin1_wall_front" type="box" size="0.13 0.013 0.05" pos="0 -0.075 0.1" material="blue-plastic" group="1"/>
+    <geom name="bin1_wall_left" type="box" size="0.01 0.13 0.05" pos="-0.125 0.05 0.1" material="blue-plastic" group="1"/>
+    <geom name="bin1_wall_right" type="box" size="0.01 0.13 0.05" pos="0.125 0.05 0.1" material="blue-plastic" group="1"/>
+    </body>
+    
+
+    <body name="bin2" pos="0.1 -0.3 0.8">
+    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.02" pos="0 -0.15 0.08" material="blue-plastic" group="1"/>
+
+    <geom name="bin2_wall_back" type="box" size="0.13 0.005 0.05" pos="0 -0.055 0.08" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_front" type="box" size="0.13 0.005 0.05" pos="0 -0.275 0.08" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_left" type="box" size="0.005 0.13 0.05" pos="-0.12 -0.15 0.08" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_right" type="box" size="0.005 0.13 0.05" pos="0.12 -0.15 0.08" material="blue-plastic" group="1"/>
+    <!-- <geom name="cube_left" type="box" size="0.04 0.04 0.04" pos="-0.1 0.12 0.04" material="light-gray-plaster" group="1" />
+    <geom name="cube_right" type="box" size="0.04 0.04 0.04" pos="0.1 0.12 0.04" material="light-gray-plaster" group="1" />
+    <geom name="bread" type="mesh" mesh="bread_mesh" pos="0.0 0.05 0.04"
+      material="bread" density="50" friction="0.95 0.3 0.1" condim="4" group="1"/> -->
+    <!--<geom name="conveyor" type="box" size="0.4 1.2 0.02" pos="0.1 -0.4 0.01" rgba="0 0 0 1" group="1"/> -->
+
+    <!--create table around bins-->
+    <geom name="table1" type="box" size="0.2 0.25 0.05" pos="0.0 -0.855 0.12" rgba="0 0 0 1" group="1"/>
+    <geom name="table2" type="box" size="0.2 0.034 0.05" pos="0.0 -0.315 0.12" rgba="0 0 0 1" group="1"/>
+    <geom name="table3" type="box" size="0.2 0.25 0.05" pos="0.0 0.2 0.12" rgba="0 0 0 1" group="1"/>
+    <geom name="table4" type="box" size="0.05 0.6 0.05" pos="0.175 -0.35 0.12" rgba="0 0 0 1" group="1"/>
+    <geom name="table5" type="box" size="0.05 0.7 0.05" pos="-0.175 -0.35 0.12" rgba="0 0 0 1" group="1"/>
+    </body>
+
+
+    <!-- front view -->
+    <camera mode="fixed" name="frontview" pos="1.6 0 1.45" quat="0.56 0.43 0.43 0.56"/>
+    <!-- bird view -->
+    <camera mode="fixed" name="birdview" pos="-0.15 0 2.2" quat="0.7071 0 0 0.7071"/>
+    <!-- agent view -->
+    <camera mode="fixed" name="agentview" pos="1.0 0 1.75" quat="0.653 0.271 0.271 0.653"/>
+
+    <camera name="left_side_view" mode="fixed" pos="0.45 -0.5 1.7579572214102434" euler="0.13 0.4 1"/>
+    <camera name="right_side_view" mode="fixed" pos="0.55 0.28 1.7579572214102434" euler="-0.35 0.5 2.3"/>
+
+    <!-- <camera name="left_side_view" mode="fixed" pos="0.45 -0.5 1.8579572214102434" euler="0.14 0.4 1"/>
+    <camera name="right_side_view" mode="fixed" pos="0.55 0.35 1.8579572214102434" euler="-0.35 0.5 2.3"/>
+ -->
+
+  </worldbody>
+</mujoco>

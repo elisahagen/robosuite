@@ -191,7 +191,7 @@ class PickPlace(ManipulationEnv):
         use_object_obs=True,
         reward_scale=1.0,
         reward_shaping=False,
-        single_object_mode=0,
+        single_object_mode=1,
         object_type=None,
         has_renderer=False,
         has_offscreen_renderer=True,

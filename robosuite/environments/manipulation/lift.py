@@ -434,6 +434,7 @@ class Lift(ManipulationEnv):
             bool: True if cube has been lifted
         """
         cube_height = self.sim.data.body_xpos[self.cube_body_id][2]
+        
         table_height = self.model.mujoco_arena.table_offset[2]
 
         # cube is higher than the table top above a margin
