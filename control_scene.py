@@ -100,6 +100,7 @@ def convert_obs(obs):
     """
     Convert observations to JSON‐serializable format.
     """
+
     if isinstance(obs, np.ndarray):
         return obs.tolist()
     elif isinstance(obs, dict):
@@ -191,7 +192,8 @@ def main(task):
             camera_names=camera_names,
             camera_heights=480,
             camera_widths=640,
-            camera_depths=True,
+            camera_depths=True,         
+            camera_segmentations=["class", "class", "class", "class"],
             control_freq=10,
             ignore_done=True,
             hard_reset=False
@@ -238,6 +240,17 @@ def main(task):
         )
 
     obs = env.reset()
+
+    first_cam_seg = f"{camera_names[0]}_segmentation_class"
+    seg = obs.get(first_cam_seg)
+    if seg is not None:
+        if seg.ndim == 3 and seg.shape[-1] == 1:
+            seg = seg[:, :, 0]
+        nclass = int(seg.max() + 1)
+    else:
+        nclass = 1
+    print(f"Detected {nclass} segmentation classes (IDs 0..{nclass-1})")
+
     for cam in env.camera_names:
         save_intrinsic_extrinsic(env, cam, base_dir)
 
@@ -387,9 +400,8 @@ def main(task):
 
             gripper_pos_m = np.array([np.mean(gripper_qpos)])
 
-
             small_obs = {k: v for k,v in obs.items()
-                            if not k.endswith("_image") and not k.endswith("_depth")}
+                            if not k.endswith("_image") and not k.endswith("_depth") and not k.endswith("_segmentation_class")}
 
             log_entry = {
                 "step":        step,
@@ -447,6 +459,27 @@ def main(task):
                     #     print(f"Failed to save depth image: {depth_filename}")
                     log_entry[depth_key] = depth_filename
 
+                seg_key = f"{cam}_segmentation_class"
+                if seg_key in obs:
+                    seg_mask = obs[seg_key]
+                    
+                    # Remove extra dimension if shape is (H, W, 1)
+                    if seg_mask.ndim == 3 and seg_mask.shape[-1] == 1:
+                        seg_mask = seg_mask[:, :, 0]
+                    
+                    seg_mask = cv2.flip(seg_mask, 0).astype(np.uint8)  # Flip + cast to uint8 for saving
+                    seg_scaled = (seg_mask * (255 // (seg_mask.max() + 1))).astype(np.uint8)
+
+                    # Apply color map (e.g., JET or HSV for diverse colors)
+                    seg_color = cv2.applyColorMap(seg_scaled, cv2.COLORMAP_HSV)
+                    mask_dir = os.path.join(base_dir, f"{cam}_segmentation")
+                    os.makedirs(mask_dir, exist_ok=True)
+                    mask_filename = os.path.join(mask_dir, f"{step:05d}_segmentation_class.png")
+                    cv2.imwrite(mask_filename, seg_color)
+                    
+                    # Log only the filename, not the array
+                    log_entry[f"{seg_key}_file"] = mask_filename
+
                      
             log_entry["observation"]["state.pos_xyzquat_right"] = np.concatenate([eef_pos, eef_quat]).tolist()
             log_entry["observation"]["state.joint_state"] = joint_state.tolist()
@@ -467,8 +500,39 @@ def main(task):
         print("Keyboard interrupt. Exiting.")
     
     finally:
-        with open(os.path.join(base_dir,"teleop_demo.json"),"w") as f:
-            json.dump(data_log,f,indent=2)
+        SEGMENTATION_METADATA = {}
+        for cid in range(nclass):
+            step = 255 // nclass if nclass > 1 else 0
+            val = cid * step
+            bgr = cv2.applyColorMap(
+                np.array([[val]], dtype=np.uint8),
+                cv2.COLORMAP_HSV
+            )[0,0].tolist()
+            SEGMENTATION_METADATA[cid] = {
+                'id': cid,
+                'color_bgr': [int(bgr[0]), int(bgr[1]), int(bgr[2])]
+            }
+        id_to_label = {
+            0: 'box',
+            1: 'gripper',
+            2: 'robot',
+            3: 'robot',
+            4: 'object',
+            5: 'background',
+            6: 'table'
+        }
+        for cid, meta in SEGMENTATION_METADATA.items():
+            meta['label'] = id_to_label.get(cid, 'none')
+
+        # Combine metadata and data
+        output = {
+            'metadata': {
+                'segmentation_classes': SEGMENTATION_METADATA
+            },
+            'data': data_log
+        }
+        with open(os.path.join(base_dir, 'teleop_demo.json'), 'w') as f:
+            json.dump(output, f, indent=2)
         print(f"Saved {len(data_log)} steps to teleop_demo.json")
 
         instruction = get_instruction_from_path(base_dir)
