@@ -15,7 +15,7 @@ class BinsArena(Arena):
     """
 
     def __init__(
-        self, bin1_pos=(0.1, -0.5, 0.8), table_full_size=(0.39, 0.49, 0.82), table_friction=(1, 0.005, 0.0001)
+        self, bin1_pos=(0.1, -0.5, 0.8), bin2_pos=(-0.1, -0.5, 0.8), table_full_size=(0.39, 0.49, 0.82), table_friction=(1, 0.005, 0.0001)
     ):
         #super().__init__(xml_path_completion("arenas/bins_arena.xml"))
         super().__init__(xml_path_completion("arenas/bins_new_arena.xml"))
@@ -26,8 +26,7 @@ class BinsArena(Arena):
 
         self.bin1_body = self.worldbody.find("./body[@name='bin1']")
         self.bin2_body = self.worldbody.find("./body[@name='bin2']")
-        self.table_top_abs = np.array(bin1_pos)
-
+        self.table_top_abs = np.array(bin1_pos) 
         self.configure_location()
 
     def configure_location(self):

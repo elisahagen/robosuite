@@ -525,7 +525,7 @@ class PickPlace(ManipulationEnv):
 
         # load model for table top workspace
         mujoco_arena = BinsArena(
-            bin1_pos=self.bin1_pos, table_full_size=self.table_full_size, table_friction=self.table_friction
+            bin1_pos=self.bin1_pos,bin2_pos=self.bin2_pos, table_full_size=self.table_full_size, table_friction=self.table_friction
         )
 
         # Arena always gets set to zero origin

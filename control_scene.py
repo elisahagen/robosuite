@@ -282,23 +282,6 @@ def main(task):
         zero_action = robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([0.0])})
         obs, _, _, _ = env.step(zero_action)
 
-        # front_img = cv2.cvtColor(obs["agentview_image"], cv2.COLOR_RGB2BGR)
-        # gripper_img = cv2.cvtColor(obs["frontview_image"], cv2.COLOR_RGB2BGR)
-        # birdview_img = cv2.cvtColor(obs["birdview_image"], cv2.COLOR_RGB2BGR)
-        # robot_img = cv2.cvtColor(obs["robot0_eye_in_hand_image"], cv2.COLOR_RGB2BGR)
-        # cv2.putText(front_img, "Agent View (Waiting)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-        # cv2.putText(gripper_img, "Gripper View", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-        # cv2.putText(birdview_img, "Bird View (Waiting)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-        # cv2.putText(robot_img, "Robot View (Waiting)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-
-        # height = min(front_img.shape[0], gripper_img.shape[0], birdview_img.shape[0], robot_img.shape[0])
-        # front_img = cv2.resize(front_img, (int(front_img.shape[1] * height / front_img.shape[0]), height))
-        # gripper_img = cv2.resize(gripper_img, (int(gripper_img.shape[1] * height / gripper_img.shape[0]), height))
-        # birdview_img = cv2.resize(birdview_img, (int(birdview_img.shape[1] * height / birdview_img.shape[0]), height))
-        # robot_img = cv2.resize(robot_img, (int(robot_img.shape[1] * height / robot_img.shape[0]), height))
-        # top_row = np.hstack((front_img, gripper_img))
-        # bottom_row = np.hstack((birdview_img, robot_img))
-        # stacked = np.vstack((top_row, bottom_row))
 
         stacked_imgs = []
         for cam_name in display_cams:

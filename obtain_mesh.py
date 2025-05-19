@@ -1,9 +1,10 @@
 import numpy as np
 import robosuite as suite
-import trimesh
 import os
 import cv2
 import argparse
+import threading
+import queue
 import datetime
 import random
 from datetime import datetime
@@ -86,7 +87,7 @@ KEY_TO_DELTA = {
 }
 ROT_STEP = 0.4
 
-KEY_TO_ROTATION = {
+KEY_TO_ROT = {
     ord('x'): np.array([ROT_STEP, 0, 0]),   # rotate x+
     ord('c'): np.array([-ROT_STEP, 0, 0]),  # rotate x-
     ord('l'): np.array([0, ROT_STEP, 0]),   # rotate y+
@@ -169,6 +170,94 @@ def get_instruction_from_path(path):
             return random.choice(INSTRUCTION_TEMPLATES[obj_name])
     return "Perform the task with the object as demonstrated."
     
+
+CAM_MODALITIES = ["image", "depth", "segmentation_class"]
+
+def setup_dirs(base_dir, camera_names):
+    os.makedirs(base_dir, exist_ok=True)
+    for cam in camera_names:
+        for mod in CAM_MODALITIES:
+            dir_name = f"{cam}_{mod}"
+            path = os.path.join(base_dir, dir_name)
+            os.makedirs(path, exist_ok=True)
+    return
+
+
+def save_camera_info(env, cam, base_dir):
+    cam_id = env.sim.model.camera_name2id(cam)
+    # Intrinsics
+    fovy = env.sim.model.cam_fovy[cam_id]
+    width = env.camera_widths[env.camera_names.index(cam)]
+    height = env.camera_heights[env.camera_names.index(cam)]
+    f = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
+    K = [[f, 0, width/2], [0, f, height/2], [0,0,1]]
+    intr = {"fovy_deg": fovy, "fx": f, "fy": f, "cx": width/2, "cy": height/2, "K": K}
+    # Extrinsics
+    pos = env.sim.model.cam_pos[cam_id].tolist()
+    quat = env.sim.model.cam_quat[cam_id]
+    Rm = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix().tolist()
+    ext = {"pos": pos, "quat_wxyz": quat.tolist(), "R": Rm}
+    info = {"camera": cam, "intrinsics": intr, "extrinsics": ext}
+    with open(os.path.join(base_dir, f"{cam}_camera_info.json"), 'w') as f:
+        json.dump(info, f, indent=2)
+
+
+def save_json(path, data, nclass):
+    if isinstance(data, dict) and "instruction" in data:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+        return
+    
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    SEGMENTATION_METADATA = {}
+    for cid in range(nclass):
+        step = 255 // nclass if nclass > 1 else 0
+        val = cid * step
+        bgr = cv2.applyColorMap(
+            np.array([[val]], dtype=np.uint8),
+            cv2.COLORMAP_HSV
+        )[0,0].tolist()
+        SEGMENTATION_METADATA[cid] = {
+            'id': cid,
+            'color_bgr': [int(bgr[0]), int(bgr[1]), int(bgr[2])]
+        }
+    id_to_label = {
+        0: 'box',
+        1: 'gripper',
+        2: 'robot',
+        3: 'robot',
+        4: 'object',
+        5: 'background',
+        6: 'table'
+    }
+    for cid, meta in SEGMENTATION_METADATA.items():
+        meta['label'] = id_to_label.get(cid, 'none')
+
+    # Combine metadata and data
+    output = {
+        'metadata': {
+            'segmentation_classes': SEGMENTATION_METADATA
+        },
+        'data': data
+    }
+    with open(path, 'w') as f:
+        json.dump(output, f, indent=2)
+
+
+def writer_loop(q):
+    for item in iter(q.get, None):
+        path, arr = item
+        cv2.imwrite(path, arr)
+    q.task_done()
+
+
+def get_instruction(path):
+    for obj, templates in INSTRUCTION_TEMPLATES.items():
+        if obj in path.lower():
+            return random.choice(templates)
+    return "Perform the task as demonstrated."
+
+
 def main(task): 
     #task = "robotic_cell"
     base_dir = "../teleop_dataset_eef/teleop_dataset_" + str(task) + "_bread_" + datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -176,73 +265,35 @@ def main(task):
     os.makedirs(base_dir, exist_ok=True)
     
     
-    controller_config = load_composite_controller_config(controller="BASIC")
+    ctrl_cfg = load_composite_controller_config(controller="BASIC")
     if task == "blue_bin_multi_object_picking":
-        camera_names = ["left_side_view", "right_side_view", "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"]
-        for cam in camera_names:
-            os.makedirs(os.path.join(base_dir,cam),     exist_ok=True)
-            os.makedirs(os.path.join(base_dir,cam+"_depth"), exist_ok=True)
-    
-        env = BinToBinTransfer(
-            robots="Panda",
-            controller_configs=controller_config,
-            has_renderer=False,           
-            has_offscreen_renderer=True,
-            use_camera_obs=True,
-            render_camera="frontview",
-            camera_names=camera_names,
-            camera_heights=480,
-            camera_widths=640,
-            camera_depths=True,         
-            camera_segmentations=["class", "class", "class", "class"],
-            control_freq=10,
-            ignore_done=True,
-            hard_reset=False
-        )
-    if task == "robotic_cell":
-        camera_names = ['robot0_robotview', "frontview"]
-        for cam in camera_names:
-            os.makedirs(os.path.join(base_dir,cam),     exist_ok=True)
-            os.makedirs(os.path.join(base_dir,cam+"_depth"), exist_ok=True)
-        env = PickPlace(
-            robots="Panda",
-            controller_configs=controller_config,
-            has_renderer=False,           
-            has_offscreen_renderer=True,
-            use_camera_obs=True,
-            render_camera="robot0_robotview",
-            camera_names=camera_names,
-            camera_heights=480,
-            camera_widths=640,
-            camera_depths=True,
-            control_freq=10,
-            ignore_done=True,
-            hard_reset=False
-        )
-    elif task == "lift":
-        camera_names = ["frontview", "agentview", "sideview"]
-        for cam in camera_names:
-            os.makedirs(os.path.join(base_dir,cam),     exist_ok=True)
-            os.makedirs(os.path.join(base_dir,cam+"_depth"), exist_ok=True)
+        EnvClass = BinToBinTransfer
+        cam_names = ["left_side_view", "right_side_view", "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"]
+    elif task == "robotic_cell":
+        EnvClass = PickPlace
+        cam_names = ["robot0_robotview", "frontview"]
+    else:
+        EnvClass = Lift
+        cam_names = ["frontview", "agentview", "sideview"]
 
-        env = Lift(
-            robots="Panda",
-            controller_configs=controller_config,
-            has_renderer=False,            
-            has_offscreen_renderer=True,
-            use_camera_obs=True,
-            render_camera="frontview",
-            camera_names=camera_names,
-            camera_heights=240,
-            camera_widths=320,
-            camera_depths=True,
-            control_freq= 10,
-            ignore_done=True,
-        )
-
+    setup_dirs(base_dir, cam_names)
+    env = EnvClass(
+        robots="Panda",
+        controller_configs=ctrl_cfg,
+        has_renderer=False,
+        has_offscreen_renderer=True,
+        use_camera_obs=True,
+        camera_names=cam_names,
+        camera_heights=[480]*len(cam_names),
+        camera_widths=[640]*len(cam_names),
+        camera_depths=True,
+        camera_segmentations=["class"]*len(cam_names),
+        control_freq=10,
+        ignore_done=True,
+        hard_reset=False,
+    )
     obs = env.reset()
-
-    first_cam_seg = f"{camera_names[0]}_segmentation_class"
+    first_cam_seg = f"{cam_names[0]}_segmentation_class"
     seg = obs.get(first_cam_seg)
     if seg is not None:
         if seg.ndim == 3 and seg.shape[-1] == 1:
@@ -252,57 +303,32 @@ def main(task):
         nclass = 1
     print(f"Detected {nclass} segmentation classes (IDs 0..{nclass-1})")
 
-    for cam in env.camera_names:
-        save_intrinsic_extrinsic(env, cam, base_dir)
+    # Save camera infos
+    for cam in cam_names:
+        save_camera_info(env, cam, base_dir)
+
+    write_q = queue.Queue()
+    threading.Thread(target=writer_loop, args=(write_q,), daemon=True).start()
 
     robot = env.robots[0]
-    done = False
-
-    step = 0
-
-    gripper_state = 0.0
-
-    data_log = []
+    zero_act = robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.zeros(1)})
+    env.reset()
+    env.step(zero_act)
 
     cv2.namedWindow("teleop", cv2.WINDOW_NORMAL)
-    print("Controls:")
-    print("  W/S/A/D: move in x/y plane")
-    print("  X/C:     rotate in x+/i plane")
-    print("  L/K:     rotate in y+/y- plane")
-    print("  N/M:     rotate in z+/z- plane")
-    print("  U/J:     move up/down")
-    print("  O:       open gripper")
-    print("  P:       close gripper")
-    print("  V:       toggle camera view")
-    print("  Q:       quit")
-
-    display_cams = env.camera_names[:4] if len(env.camera_names) >= 4 else env.camera_names[:2]
+    step = 0
+    data_records = []
+    grip = 0.0
 
     while True:
 
         zero_action = robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([0.0])})
         obs, _, _, _ = env.step(zero_action)
 
-        # front_img = cv2.cvtColor(obs["agentview_image"], cv2.COLOR_RGB2BGR)
-        # gripper_img = cv2.cvtColor(obs["frontview_image"], cv2.COLOR_RGB2BGR)
-        # birdview_img = cv2.cvtColor(obs["birdview_image"], cv2.COLOR_RGB2BGR)
-        # robot_img = cv2.cvtColor(obs["robot0_eye_in_hand_image"], cv2.COLOR_RGB2BGR)
-        # cv2.putText(front_img, "Agent View (Waiting)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-        # cv2.putText(gripper_img, "Gripper View", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-        # cv2.putText(birdview_img, "Bird View (Waiting)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-        # cv2.putText(robot_img, "Robot View (Waiting)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
-
-        # height = min(front_img.shape[0], gripper_img.shape[0], birdview_img.shape[0], robot_img.shape[0])
-        # front_img = cv2.resize(front_img, (int(front_img.shape[1] * height / front_img.shape[0]), height))
-        # gripper_img = cv2.resize(gripper_img, (int(gripper_img.shape[1] * height / gripper_img.shape[0]), height))
-        # birdview_img = cv2.resize(birdview_img, (int(birdview_img.shape[1] * height / birdview_img.shape[0]), height))
-        # robot_img = cv2.resize(robot_img, (int(robot_img.shape[1] * height / robot_img.shape[0]), height))
-        # top_row = np.hstack((front_img, gripper_img))
-        # bottom_row = np.hstack((birdview_img, robot_img))
-        # stacked = np.vstack((top_row, bottom_row))
 
         stacked_imgs = []
-        for cam_name in display_cams:
+        for idx in (0,2):
+            cam_name = cam_names[idx]
             if f"{cam_name}_image" in obs:
                 img = cv2.cvtColor(obs[f"{cam_name}_image"], cv2.COLOR_RGB2BGR)
                 img = cv2.flip(img, 0)
@@ -323,98 +349,45 @@ def main(task):
             env.close()
             cv2.destroyAllWindows()
             return
-    try: 
+
+    try:
         while True:
-            zero_action = robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([0.0])})
-            obs, _, _, _ = env.step(zero_action)
-
-            # front_img = cv2.cvtColor(obs["frontview_image"], cv2.COLOR_RGB2BGR)
-            # gripper_img = cv2.cvtColor(obs["robot0_eye_in_hand_image"], cv2.COLOR_RGB2BGR)
-            # agent_img = cv2.cvtColor(obs["agentview_image"], cv2.COLOR_RGB2BGR)
-            # bird_img = cv2.cvtColor(obs["birdview_image"], cv2.COLOR_RGB2BGR)
-            # gripper_img = cv2.flip(gripper_img, 180)
-            # front_img = cv2.flip(front_img, 0)
-            # agent_img = cv2.flip(agent_img, 0)
-            # bird_img = cv2.flip(bird_img, 0)
-            # cv2.putText(front_img, "Front View", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,0), 2)
-            # cv2.putText(gripper_img, "Gripper View", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,0), 2)
-            # cv2.putText(agent_img, "Agent View", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,0), 2)
-            # cv2.putText(bird_img, "Bird View", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,255,0), 2)
-            # top_row = np.hstack((front_img, gripper_img))
-            # bottom_row = np.hstack((agent_img, bird_img))
-            # stacked = np.vstack((top_row, bottom_row))
-            # cv2.imshow("teleop", stacked)
-
-            stacked_imgs = []
-            for cam_name in display_cams:
-                img_key = f"{cam_name}_image"
-                if img_key in obs:
-                    img = cv2.cvtColor(obs[img_key], cv2.COLOR_RGB2BGR)
-                    img = cv2.flip(img, 0)
-                    img = cv2.resize(img, (320, 240))
-                    cv2.putText(img, cam_name, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
-                    stacked_imgs.append(img)
-
-            rows = [np.hstack(stacked_imgs[i:i+2]) for i in range(0, len(stacked_imgs), 2)]
-            stacked = np.vstack(rows)
-
-            cv2.imshow("teleop", stacked)
-
-
-            delta = np.zeros(3)
-            delta_rot = np.zeros(3)
-            key = cv2.waitKey(10) & 0xFF
-
-            # Movement
-            if key in KEY_TO_DELTA:
-                delta += KEY_TO_DELTA[key]
-            # Rotation
-            if key in KEY_TO_ROTATION:
-                delta_rot += KEY_TO_ROTATION[key]
-            # Gripper
-            if key == ord('p'):
-                gripper_state = 1.0
-                print("Gripper: CLOSED")
-            elif key == ord('o'):
-                gripper_state = -1.0
-                print("Gripper: OPEN")
-            elif key in (ord('q'), ord('Q'), 27):
-                print("Quitting.")
+            obs = env.sim.render(640, 480, camera_name=cam_names[0])
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord('q'), ord('Q'), 27):
                 break
-            
-            
-            # Compose and send action
-            arm_delta = np.concatenate([delta, delta_rot])
-            action_dict = {"right": arm_delta, "right_gripper": np.array([gripper_state])}
-            action = robot.create_action_vector(action_dict)
-            obs, reward, done, info = env.step(action)
+            delta = KEY_TO_DELTA.get(key, np.zeros(3))
+            drot = KEY_TO_ROT.get(key, np.zeros(3))
+            # update gripper
+            if key in (ord('o'), ord('O')): grip=-1.0
+            elif key in (ord('p'), ord('P')): grip=1.0
+            else: grip=grip
 
-            # NEW: print gripper z position
-            gripper_pos = robot._hand_pos
+            action = robot.create_action_vector({
+                "right": np.concatenate([delta, drot]),
+                "right_gripper": np.array([grip])
+            })
+            obs, rew, done, info = env.step(action)
 
-            eef_pos = gripper_pos["right"]
-            eef_quat = robot._hand_quat["right"] # [x, y, z, w]
+            rec = {"step": step, "action": action.tolist(), "reward": float(rew), "done": bool(done)}
+            rec["joint_state"] = robot.sim.data.qpos[robot._ref_joint_pos_indexes].tolist()
+            rec["ee_pose"] = robot._hand_pos["right"].tolist() + robot._hand_quat["right"].tolist()
+            obs_dict = {}
+            for k,v in obs.items():
+                if k.endswith("_image") or k.endswith("_depth") or k.endswith("_segmentation_class"):
+                    continue
+                obs_dict[k] = v.tolist() if isinstance(v, np.ndarray) else v
+            rec["observation"] = obs_dict
 
-            joint_state = robot.sim.data.qpos[robot._ref_joint_pos_indexes] # [7]
-            gripper_indices = list(robot._ref_gripper_joint_pos_indexes.values())
-            gripper_qpos = robot.sim.data.qpos[gripper_indices]
+            for cam in cam_names:
+                for mod in ["image","depth","segmentation_class"]:
+                    field = f"{cam}_{mod}_file"
+                    path  = os.path.join(base_dir, cam, mod, f"{step:05d}.png")
+                    rec[field] = path
 
-            gripper_pos_m = np.array([np.mean(gripper_qpos)])
-
-            small_obs = {k: v for k,v in obs.items()
-                            if not k.endswith("_image") and not k.endswith("_depth") and not k.endswith("_segmentation_class")}
-
-            log_entry = {
-                "step":        step,
-                "observation": convert_obs(small_obs),
-                "reward": float(reward),
-                "done": bool(done),
-                "info": convert_obs(info),
-                "action": action.tolist(),
-            }
-
+            # "done” logic:
             known_objects = [obj.lower() for obj in INSTRUCTION_TEMPLATES.keys()]
-            for key, value in log_entry["observation"].items():
+            for key, value in rec["observation"].items():
                 if not key.endswith("_pos"):
                     continue
 
@@ -424,159 +397,76 @@ def main(task):
 
                 if isinstance(value, list) and len(value) > 1:
                     y_pos = value[1]
-                    if y_pos >= 0.05 and gripper_state <= -1.0:
-                        log_entry["done"] = True
+                    if y_pos >= 0.05 and grip <= -1.0:
+                        rec["done"] = True
                         break
 
-            for cam in camera_names:
-                image_key = f"{cam}_image"
-                if image_key in obs:
-                    rgb_img = obs[image_key]
-                    bgr_img = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR)
-                    bgr_img = cv2.flip(bgr_img, 0)
-                    image_filename = os.path.join(base_dir, cam, f"{step:05d}.png")
-                    cv2.imwrite(image_filename, bgr_img)
-                    # if cv2.imwrite(image_filename, bgr_img):
-                    #     #print(f"Saved RGB image: {image_filename}")
-                    # else:
-                    #     print(f"Failed to save RGB image: {image_filename}")
-                    log_entry[image_key] = image_filename
 
-                depth_key = f"{cam}_depth"
-                if depth_key in obs:
-                    depth_img = obs[depth_key]
-                    d_min, d_max = depth_img.min(), depth_img.max()
-                    if d_max - d_min > 1e-6:
-                        depth_normalized = (depth_img - d_min) / (d_max - d_min) * 255
-                    else:
-                        depth_normalized = depth_img * 0
-                    depth_normalized = depth_normalized.astype(np.uint8)
-                    depth_normalized = cv2.flip(depth_normalized, 0)
-                    depth_filename = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
-                    cv2.imwrite(depth_filename, depth_normalized)
-                    # if cv2.imwrite(depth_filename, depth_normalized):
-                    #     #print(f"Saved depth image: {depth_filename}")
-                    # else:
-                    #     print(f"Failed to save depth image: {depth_filename}")
-                    log_entry[depth_key] = depth_filename
+            data_records.append(rec)
+            display_cams = env.camera_names[:4] if len(env.camera_names) >= 4 else env.camera_names[:2]
+            for cam in cam_names:
+
+                rgb_key = f"{cam}_image"
+                if rgb_key in obs:
+                    img = cv2.cvtColor(obs[rgb_key], cv2.COLOR_RGB2BGR)
+                    img = cv2.flip(img, 0)
+                    path = os.path.join(base_dir, f"{cam}_image", f"{step:05d}.png")
+                    write_q.put((path, img))
+
+                dep_key = f"{cam}_depth"
+                if dep_key in obs:
+                    d = obs[dep_key]
+                    mn, mx = d.min(), d.max()
+                    norm = ((d - mn) / (mx - mn + 1e-6) * 255).astype(np.uint8)
+                    norm = cv2.flip(norm, 0)
+                    path = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
+                    write_q.put((path, norm))
 
                 seg_key = f"{cam}_segmentation_class"
                 if seg_key in obs:
-                    seg_mask = obs[seg_key]
-                    
-                    # Remove extra dimension if shape is (H, W, 1)
-                    if seg_mask.ndim == 3 and seg_mask.shape[-1] == 1:
-                        seg_mask = seg_mask[:, :, 0]
-                    
-                    seg_mask = cv2.flip(seg_mask, 0).astype(np.uint8)  # Flip + cast to uint8 for saving
-                    seg_scaled = (seg_mask * (255 // (seg_mask.max() + 1))).astype(np.uint8)
+                    mask = obs[seg_key]
+                    if mask.ndim == 3 and mask.shape[-1] == 1:
+                        mask = mask[:, :, 0]
+                    mask = mask.astype(np.uint8)
+                    scaled = (mask * (255 // max(nclass, 1))).astype(np.uint8)
+                    colored = cv2.applyColorMap(scaled, cv2.COLORMAP_HSV)
+                    colored = cv2.flip(colored, 0)
+                    path = os.path.join(base_dir, f"{cam}_segmentation_class", f"{step:05d}.png")
+                    write_q.put((path, colored))
 
-                    # Apply color map (e.g., JET or HSV for diverse colors)
-                    seg_color = cv2.applyColorMap(seg_scaled, cv2.COLORMAP_HSV)
-                    mask_dir = os.path.join(base_dir, f"{cam}_segmentation")
-                    os.makedirs(mask_dir, exist_ok=True)
-                    mask_filename = os.path.join(mask_dir, f"{step:05d}_segmentation_class.png")
-                    cv2.imwrite(mask_filename, seg_color)
-                    
-                    # Log only the filename, not the array
-                    log_entry[f"{seg_key}_file"] = mask_filename
-
-                     
-            log_entry["observation"]["state.pos_xyzquat_right"] = np.concatenate([eef_pos, eef_quat]).tolist()
-            log_entry["observation"]["state.joint_state"] = joint_state.tolist()
-            log_entry["observation"]["state.position_m"] = gripper_pos_m.tolist()
-
-            log_entry["action.pos_xyzquat_right"] = np.concatenate([delta, R.from_rotvec(delta_rot).as_quat()]).tolist()
-            log_entry["action.joint_state"] = arm_delta[:7].tolist()  # or full joint delta if available
-            log_entry["action.position_m"] = [gripper_state]
-
+            # display rotated teleop overview
+            stacked_imgs = []
+            for idx in (0,2):
+                cam = display_cams[idx]
+                rgb_key = f"{cam}_image"
+                if rgb_key in obs:
+                    img = cv2.cvtColor(obs[rgb_key], cv2.COLOR_RGB2BGR)
+                    img = cv2.flip(img, 0)
+                    img = cv2.resize(img, (320,240))
+                    cv2.putText(img, cam, (10,30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,255,0), 2)
+                    stacked_imgs.append(img)
+            rows   = [np.hstack(stacked_imgs[i:i+2]) for i in range(0, len(stacked_imgs), 2)]
+            stacked= np.vstack(rows)
             
-            data_log.append(log_entry)
+            cv2.imshow("teleop", stacked)
 
             step += 1
+            if done:
+                break
 
-
-
-    except KeyboardInterrupt:
-        print("Keyboard interrupt. Exiting.")
-    
     finally:
-        model   = env.sim.model
-        mesh_id = model.mesh_name2id("Bread_bread_mesh")
-        print("Mesh", mesh_id)
-
-        # 1) Vertices
-        vstart, nvert = model.mesh_vertadr[mesh_id], model.mesh_vertnum[mesh_id]
-        verts = model.mesh_vert[vstart : vstart + nvert].reshape(-1, 3)
-
-        # 2) Faces
-        fstart, nface = model.mesh_faceadr[mesh_id], model.mesh_facenum[mesh_id]
-        faces = model.mesh_face[fstart : fstart + nface*3].reshape(-1, 3)
-
-        # 3) (Optional) Scale
-        scale = model.mesh_scale[mesh_id]  # e.g. [0.8,0.8,0.8]
-
-        # 4) Write ASCII PLY
-        with open(os.path.join(base_dir, "bread_canonical.ply"), "w") as f:
-            f.write("ply\nformat ascii 1.0\n")
-            f.write(f"element vertex {len(verts)}\n")
-            f.write("property float x\nproperty float y\nproperty float z\n")
-            f.write(f"element face {len(faces)}\n")
-            f.write("property list uchar int vertex_indices\n")
-            f.write("end_header\n")
-            for v in verts * scale:                # apply scale if you want
-                f.write(f"{v[0]} {v[1]} {v[2]}\n")
-            for face in faces:
-                f.write(f"3 {face[0]} {face[1]} {face[2]}\n")
-
-
-        SEGMENTATION_METADATA = {}
-        for cid in range(nclass):
-            step = 255 // nclass if nclass > 1 else 0
-            val = cid * step
-            bgr = cv2.applyColorMap(
-                np.array([[val]], dtype=np.uint8),
-                cv2.COLORMAP_HSV
-            )[0,0].tolist()
-            SEGMENTATION_METADATA[cid] = {
-                'id': cid,
-                'color_bgr': [int(bgr[0]), int(bgr[1]), int(bgr[2])]
-            }
-        id_to_label = {
-            0: 'box',
-            1: 'gripper',
-            2: 'robot',
-            3: 'robot',
-            4: 'object',
-            5: 'background',
-            6: 'table'
-        }
-        for cid, meta in SEGMENTATION_METADATA.items():
-            meta['label'] = id_to_label.get(cid, 'none')
-
-        # Combine metadata and data
-        output = {
-            'metadata': {
-                'segmentation_classes': SEGMENTATION_METADATA
-            },
-            'data': data_log
-        }
-        with open(os.path.join(base_dir, 'teleop_demo.json'), 'w') as f:
-            json.dump(output, f, indent=2)
-        print(f"Saved {len(data_log)} steps to teleop_demo.json")
-
-        instruction = get_instruction_from_path(base_dir)
-        with open(os.path.join(base_dir, "instruction.json"), "w") as f:
-            json.dump({"instruction": instruction}, f, indent=2)
-        print(f"✅ Saved instruction: {instruction}")
-
-
+        write_q.put(None)
         env.close()
         cv2.destroyAllWindows()
+        # save teleop log & instruction
+        save_json(os.path.join(base_dir, "teleop.json"), data_records, nclass)
+        instr = get_instruction(base_dir)
+        save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
+        print(f"Saved {step} steps, data to {base_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=str, default="blue_bin_multi_object_picking", help="Task to run")
-
+    parser.add_argument("--task", type=str, default="blue_bin_multi_object_picking")
     args = parser.parse_args()
     main(args.task)
