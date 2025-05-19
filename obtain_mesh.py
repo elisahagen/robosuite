@@ -102,7 +102,6 @@ def convert_obs(obs):
     """
     Convert observations to JSON‐serializable format.
     """
-
     if isinstance(obs, np.ndarray):
         return obs.tolist()
     elif isinstance(obs, dict):
@@ -171,15 +170,14 @@ def get_instruction_from_path(path):
     return "Perform the task with the object as demonstrated."
     
 
-CAM_MODALITIES = ["image", "depth", "segmentation_class"]
+CAM_MODALITIES = ["image", "depth", "segmentation"]
 
 def setup_dirs(base_dir, camera_names):
     os.makedirs(base_dir, exist_ok=True)
     for cam in camera_names:
-        for mod in CAM_MODALITIES:
-            dir_name = f"{cam}_{mod}"
-            path = os.path.join(base_dir, dir_name)
-            os.makedirs(path, exist_ok=True)
+        os.makedirs(os.path.join(base_dir, cam),               exist_ok=True) 
+        os.makedirs(os.path.join(base_dir, cam + "_depth"),     exist_ok=True)
+        os.makedirs(os.path.join(base_dir, cam + "_segmentation"), exist_ok=True)
     return
 
 
@@ -369,20 +367,36 @@ def main(task):
             })
             obs, rew, done, info = env.step(action)
 
-            rec = {"step": step, "action": action.tolist(), "reward": float(rew), "done": bool(done)}
-            rec["joint_state"] = robot.sim.data.qpos[robot._ref_joint_pos_indexes].tolist()
-            rec["ee_pose"] = robot._hand_pos["right"].tolist() + robot._hand_quat["right"].tolist()
-            obs_dict = {}
-            for k,v in obs.items():
-                if k.endswith("_image") or k.endswith("_depth") or k.endswith("_segmentation_class"):
-                    continue
-                obs_dict[k] = v.tolist() if isinstance(v, np.ndarray) else v
-            rec["observation"] = obs_dict
+            eef_pos     = robot._hand_pos["right"]               # [x,y,z]
+            eef_quat    = robot._hand_quat["right"]              # [x,y,z,w]
+            joint_state = robot.sim.data.qpos[robot._ref_joint_pos_indexes].copy()  # 7‐joint vector
 
+            # gripper qpos mean as a scalar “position_m”
+            gripper_idxs = list(robot._ref_gripper_joint_pos_indexes.values())
+            gripper_qpos = robot.sim.data.qpos[gripper_idxs]
+            gripper_pos_m= np.array([gripper_qpos.mean()]) 
+
+            small_obs = {k: v for k,v in obs.items()
+                            if not k.endswith("_image") and not k.endswith("_depth") and not k.endswith("_segmentation_class")}    
+
+            rec = {"step": step, "observation": convert_obs(small_obs), "action": action.tolist(), "reward": float(rew), "done": bool(done)}
+
+            rec["observation"]["state.pos_xyzquat_right"] = np.concatenate([eef_pos, eef_quat]).tolist()
+            rec["observation"]["state.joint_state"]      = joint_state.tolist()
+            rec["observation"]["state.position_normalized"]       = gripper_pos_m.tolist()
+
+            rec["action.pos_xyzquat_right"] = np.concatenate([delta, R.from_rotvec(drot).as_quat()]).tolist()
+            rec["action.joint_state"]      = action[:7].tolist()
+            rec["action.position_normalized"]       = [grip]
+            
             for cam in cam_names:
-                for mod in ["image","depth","segmentation_class"]:
-                    field = f"{cam}_{mod}_file"
-                    path  = os.path.join(base_dir, cam, mod, f"{step:05d}.png")
+                for mod in ["image","depth","segmentation"]:
+                    if mod == "image": 
+                        field = f"{cam}_file"
+                        path  = os.path.join(base_dir, cam, mod, f"{step:05d}.png")
+                    else: 
+                        field = f"{cam}_{mod}_file"
+                        path  = os.path.join(base_dir, cam, mod, f"{step:05d}.png")
                     rec[field] = path
 
             # "done” logic:
@@ -410,7 +424,7 @@ def main(task):
                 if rgb_key in obs:
                     img = cv2.cvtColor(obs[rgb_key], cv2.COLOR_RGB2BGR)
                     img = cv2.flip(img, 0)
-                    path = os.path.join(base_dir, f"{cam}_image", f"{step:05d}.png")
+                    path = os.path.join(base_dir, f"{cam}", f"{step:05d}.png")
                     write_q.put((path, img))
 
                 dep_key = f"{cam}_depth"
@@ -431,7 +445,7 @@ def main(task):
                     scaled = (mask * (255 // max(nclass, 1))).astype(np.uint8)
                     colored = cv2.applyColorMap(scaled, cv2.COLORMAP_HSV)
                     colored = cv2.flip(colored, 0)
-                    path = os.path.join(base_dir, f"{cam}_segmentation_class", f"{step:05d}.png")
+                    path = os.path.join(base_dir, f"{cam}_segmentation", f"{step:05d}.png")
                     write_q.put((path, colored))
 
             # display rotated teleop overview
@@ -460,7 +474,7 @@ def main(task):
         env.close()
         cv2.destroyAllWindows()
         # save teleop log & instruction
-        save_json(os.path.join(base_dir, "teleop.json"), data_records, nclass)
+        save_json(os.path.join(base_dir, "teleop_demo.json"), data_records, nclass)
         instr = get_instruction(base_dir)
         save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
         print(f"Saved {step} steps, data to {base_dir}")

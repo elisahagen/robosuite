@@ -67,7 +67,7 @@
     <!--<geom name="conveyor" type="box" size="0.4 1.2 0.02" pos="0.1 -0.4 0.01" rgba="0 0 0 1" group="1"/> -->
 
     <!--create table around bins-->
-    <body name="table" pos="0.1 0.275 0.8">
+    <body name="table" pos="0.1 0.28 0.8">
     <geom name="table1" type="box" size="0.2 0.25 0.05" pos="0.0 -0.855 0.12" rgba="0 0 0 1" group="1"/>
     <geom name="table2" type="box" size="0.2 0.034 0.05" pos="0.0 -0.315 0.12" rgba="0 0 0 1" group="1"/>
     <geom name="table3" type="box" size="0.2 0.25 0.05" pos="0.0 0.2 0.12" rgba="0 0 0 1" group="1"/>
