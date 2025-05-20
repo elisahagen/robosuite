@@ -16,6 +16,10 @@ from robosuite.environments.manipulation.pick_place import PickPlace
 from robosuite.models.arenas.multi_table_arena import MultiTableArena
 from custom_assets.BinToBinTransfer import BinToBinTransfer
 from scipy.spatial.transform import Rotation as R
+import trimesh
+from robosuite.models.objects import BreadObject
+import xml.etree.ElementTree as ET
+
 
 STEP_SIZE = 0.3
 UP_DOWN = 0.25
@@ -181,23 +185,41 @@ def setup_dirs(base_dir, camera_names):
     return
 
 
-def save_camera_info(env, cam, base_dir):
-    cam_id = env.sim.model.camera_name2id(cam)
-    # Intrinsics
-    fovy = env.sim.model.cam_fovy[cam_id]
-    width = env.camera_widths[env.camera_names.index(cam)]
-    height = env.camera_heights[env.camera_names.index(cam)]
-    f = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
-    K = [[f, 0, width/2], [0, f, height/2], [0,0,1]]
-    intr = {"fovy_deg": fovy, "fx": f, "fy": f, "cx": width/2, "cy": height/2, "K": K}
-    # Extrinsics
-    pos = env.sim.model.cam_pos[cam_id].tolist()
-    quat = env.sim.model.cam_quat[cam_id]
-    Rm = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix().tolist()
-    ext = {"pos": pos, "quat_wxyz": quat.tolist(), "R": Rm}
-    info = {"camera": cam, "intrinsics": intr, "extrinsics": ext}
-    with open(os.path.join(base_dir, f"{cam}_camera_info.json"), 'w') as f:
-        json.dump(info, f, indent=2)
+def load_canonical_mesh_from_asset(xml_path):
+    txt = open(xml_path, 'r').read()
+    wrapped = "<root>\n" + txt + "\n</root>"
+    root = ET.fromstring(wrapped)
+
+    # 2) find the first <mesh> anywhere under it
+    mesh_elem = root.find(".//mesh")
+    mesh_file = mesh_elem.attrib["file"]
+    scale_str = mesh_elem.attrib.get("scale", "1 1 1")
+    scales = [float(s) for s in scale_str.split()]
+
+    # 3) resolve path and load+scale
+    mesh_path = os.path.join(os.path.dirname(xml_path), mesh_file)
+    mesh = trimesh.load(mesh_path, force="mesh")
+    mesh.apply_scale(scales)
+    return mesh
+
+
+# def save_camera_info(env, cam, base_dir):
+#     cam_id = env.sim.model.camera_name2id(cam)
+#     # Intrinsics
+#     fovy = env.sim.model.cam_fovy[cam_id]
+#     width = env.camera_widths[env.camera_names.index(cam)]
+#     height = env.camera_heights[env.camera_names.index(cam)]
+#     f = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
+#     K = [[f, 0, width/2], [0, f, height/2], [0,0,1]]
+#     intr = {"fovy_deg": fovy, "fx": f, "fy": f, "cx": width/2, "cy": height/2, "K": K}
+#     # Extrinsics
+#     pos = env.sim.model.cam_pos[cam_id].tolist()
+#     quat = env.sim.model.cam_quat[cam_id]
+#     Rm = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix().tolist()
+#     ext = {"pos": pos, "quat_wxyz": quat.tolist(), "R": Rm}
+#     info = {"camera": cam, "intrinsics": intr, "extrinsics": ext}
+#     with open(os.path.join(base_dir, f"{cam}_camera_info.json"), 'w') as f:
+#         json.dump(info, f, indent=2)
 
 
 def save_json(path, data, nclass):
@@ -241,13 +263,11 @@ def save_json(path, data, nclass):
     with open(path, 'w') as f:
         json.dump(output, f, indent=2)
 
-
 def writer_loop(q):
     for item in iter(q.get, None):
         path, arr = item
         cv2.imwrite(path, arr)
     q.task_done()
-
 
 def get_instruction(path):
     for obj, templates in INSTRUCTION_TEMPLATES.items():
@@ -261,7 +281,6 @@ def main(task):
     base_dir = "../teleop_dataset_eef/teleop_dataset_" + str(task) + "_bread_" + datetime.now().strftime("%Y%m%d_%H%M%S")
     print(base_dir)
     os.makedirs(base_dir, exist_ok=True)
-    
     
     ctrl_cfg = load_composite_controller_config(controller="BASIC")
     if task == "blue_bin_multi_object_picking":
@@ -291,6 +310,13 @@ def main(task):
         hard_reset=False,
     )
     obs = env.reset()
+    xml_path = "/home/elisa/Documents/masterthesis/git/robosuite/robosuite/models/assets/objects/bread_asset.xml"
+    bread_canonical = load_canonical_mesh_from_asset(xml_path)
+    canonical_out = os.path.join(base_dir, "bread_canonical.ply")
+    bread_canonical.export(canonical_out, file_type="ply", encoding="ascii")
+    print(f"[+] wrote canonical bread mesh → {canonical_out}")
+
+
     first_cam_seg = f"{cam_names[0]}_segmentation_class"
     seg = obs.get(first_cam_seg)
     if seg is not None:
@@ -303,7 +329,7 @@ def main(task):
 
     # Save camera infos
     for cam in cam_names:
-        save_camera_info(env, cam, base_dir)
+        save_intrinsic_extrinsic(env, cam, base_dir)
 
     write_q = queue.Queue()
     threading.Thread(target=writer_loop, args=(write_q,), daemon=True).start()

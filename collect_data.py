@@ -155,13 +155,6 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
 
     print(f"Saved camera info for {cam} to {save_path}")
 
-def get_instruction_from_path(path):
-    for obj_name in INSTRUCTION_TEMPLATES:
-        if obj_name in path.lower():
-            return random.choice(INSTRUCTION_TEMPLATES[obj_name])
-    return "Perform the task with the object as demonstrated."
-    
-
 CAM_MODALITIES = ["image", "depth", "segmentation"]
 
 
@@ -240,9 +233,9 @@ def writer_loop(q):
         cv2.imwrite(path, arr)
     q.task_done()
 
-def get_instruction(path):
+def get_instruction(path, target_object):
     for obj, templates in INSTRUCTION_TEMPLATES.items():
-        if obj in path.lower():
+        if obj in target_object.lower():
             return random.choice(templates)
     return "Perform the task as demonstrated."
 
@@ -257,7 +250,6 @@ def get_object_pose(obs, obj_name="Bread"):
     return np.array(obs[f"{obj_name}_pos"]), np.array(obs[f"{obj_name}_quat"])
 
 def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, data_records):
-    # strip out image/depth/seg keys
     small_obs = {
         k: v for k, v in obs.items()
         if not (k.endswith("_image") or k.endswith("_depth") or k.endswith("_segmentation_class"))
@@ -300,17 +292,16 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         # RGB
         rgb = obs[f"{cam}_image"][..., ::-1]   # RGB→BGR
         rgb = np.flipud(rgb)
-        p = os.path.join(base_dir, cam, "image", f"{step:05d}.png")
+        p = os.path.join(base_dir, cam, f"{step:05d}.png")
         write_q.put((p, rgb))
 
-        # Depth
         d = obs[f"{cam}_depth"].astype(np.float32)
         mn, mx = d.min(), d.max()
-        # was d.ptp(), now:
         rng = mx - mn if (mx - mn) > 1e-6 else 1e-6
         norm = ((d - mn) / rng * 255).astype(np.uint8)
         norm = np.flipud(norm)
-        p = os.path.join(base_dir, cam, "depth", f"{step:05d}.png")
+        cam_depth = cam + "_depth"
+        p = os.path.join(base_dir, cam_depth, f"{step:05d}.png")
         write_q.put((p, norm))
 
         # Segmentation
@@ -320,7 +311,8 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         scaled  = (mask * (255 // (mask.max() + 1))).astype(np.uint8)
         colored = cv2.applyColorMap(scaled, cv2.COLORMAP_HSV)
         colored = np.flipud(colored)
-        p = os.path.join(base_dir, cam, "segmentation", f"{step:05d}.png")
+        cam_seg = cam + "_segmentation"
+        p = os.path.join(base_dir, cam_seg, f"{step:05d}.png")
         write_q.put((p, colored))
     
     return data_records
@@ -381,7 +373,7 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
 
         step_z = STEP_Z * np.sign(dz)
         if target is not None:
-            for i in range(20): 
+            for i in range(25): 
                 action = {
                     "right":         np.array([0.0,0.0, -step_z,  0,0,0]),
                     "right_gripper": np.array([+1.0])
@@ -470,7 +462,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
 
-    for _ in range(15):
+    for _ in range(25):
         action = {
             "right":         np.array([0.0, 0.0, -STEP_Z, 0.0, 0.0, 0.0]),
             "right_gripper": np.array([+1.0])
@@ -489,7 +481,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
     data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
     step += 1
 
-    for _ in range(15):
+    for _ in range(25):
         action = {
             "right":         np.array([0.0, 0.0, +STEP_Z, 0.0, 0.0, 0.0]),
             "right_gripper": np.array([-1.0])
@@ -538,8 +530,9 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     step, data_records = move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records)
 
     nclass = 6
+    target_object = "Bread"
     save_json(os.path.join(base_dir, "teleop_demo.json"), data_records, nclass)
-    instr = get_instruction(base_dir)
+    instr = get_instruction(base_dir, target_object)
     save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
 
     print("✅ Completed automatic pick-and-place")
@@ -581,7 +574,6 @@ if __name__ == "__main__":
 
     robot = env.robots[0]
 
-    # 4) run auto pick‐and‐place
     auto_pick_and_place(env, robot, write_q, base_dir, cam_names)
 
     env.close()
