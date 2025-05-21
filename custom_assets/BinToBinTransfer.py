@@ -34,8 +34,8 @@ class BinToBinTransfer(PickPlace):
             UniformRandomSampler(
                 name="Bin1ObjectSampler",
                 mujoco_objects=self.objects,
-                x_range=[0.0, 0.07],
-                y_range=[-0.03, 0.17],
+                x_range=[0.01, 0.05],
+                y_range=[-0.03, 0.06],
                 rotation=self.z_rotation,
                 rotation_axis="z",
                 ensure_object_boundary_in_range=True,

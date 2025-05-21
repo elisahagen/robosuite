@@ -5,6 +5,7 @@ import cv2
 import argparse
 import threading
 import queue
+import math
 import datetime
 import random
 from datetime import datetime
@@ -78,15 +79,14 @@ INSTRUCTION_TEMPLATES = {
 
 STEP_SIZE = 0.3
 UP_DOWN   = 0.25
-TOL_XY    = 0.2
-TOL_Z     = 0.01
 HOME_JOINTS = [0., np.pi/4., 0., -np.pi/4., 0., np.pi/2., 0.]
 
 STEP_XY   = 0.3
 STEP_Z    = 0.25
-STEP_ROT  = 0.2  # rad per step (~23°)
-STEP_TIL = 0.2  # rad per step (~23°)
-TOL_XY    = 0.01
+STEP_ROT  = 0.07 
+STEP_TIL = 0.08
+TOL_TIL = 0.1 
+TOL_XY    = 0.008
 TOL_Z     = 0.01
 TOL_YAW   = 0.01 
 
@@ -278,6 +278,22 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         "done":        bool(done),
     }
 
+    known_objects = [obj.lower() for obj in INSTRUCTION_TEMPLATES.keys()]
+    gripper_state = action_vec.tolist()[-1]
+    for key, value in rec["observation"].items():
+        if not key.endswith("_pos"):
+            continue
+
+        object_name = key.replace("_pos", "").lower()
+        if object_name not in known_objects:
+            continue
+
+        if isinstance(value, list) and len(value) > 1:
+            y_pos = value[1]
+            if y_pos >= 0.05 and gripper_state <= -1.0:
+                rec["done"] = True
+                break
+
     delta = action_vec[0:3]    
     drot  = action_vec[3:6]    
     grip  = action_vec[6]
@@ -329,7 +345,6 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records):
         dx, dy, _ = rel_pos
 
         if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
-            print("break")
             break
 
         step_x = STEP_XY * np.sign(dx)
@@ -357,7 +372,6 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         obs, rew, done, _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([+1.0])}))  
     else: 
         obs, rew, done, _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([-1.0])}))  
-    print("in z")
 
     while True:
         
@@ -368,12 +382,11 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         
 
         if abs(dz) < TOL_Z:
-            print("break z")
             break
 
         step_z = STEP_Z * np.sign(dz)
         if target is not None:
-            for i in range(25): 
+            for i in range(30): 
                 action = {
                     "right":         np.array([0.0,0.0, -step_z,  0,0,0]),
                     "right_gripper": np.array([+1.0])
@@ -399,44 +412,80 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         
     return step, data_records 
 
+STEP_ROT_DEG = 5    # rotate up to 5° each step
+TOLERANCE_DEG = 6
+
 def rotate_to(env, robot, base_dir, cam_names, step, data_records):
     """
     Rotate your end‐effector so that its axes line up with the object,
     stepping in ROT_STEP until the axis‐angle error is below ROT_TOL.
     """
+
+    # 1) Seed with a zero-motion step to get initial obs
+    def get_current_yaw_rad(obs):
+        # obs["Bread_to_robot0_eef_quat"] is [w, x, y, z]
+        w, x, y, z = obs["Bread_to_robot0_eef_quat"]
+        q = [x, y, z, w]                       # reorder for scipy
+        R_obj2eef = R.from_quat(q).inv()       # gripper→object
+        yaw, _, _ = R_obj2eef.as_euler("zyx", degrees=False)
+        return yaw
+
+    def band_distance(deg10):
+        """If outside [8,82], distance is zero; else distance to nearest edge."""
+        mag = abs(deg10)
+        if mag <= 8 or mag >= 82:
+            return 0.0
+        return min(mag - 8, 82 - mag)
+
+    # 1) seed with a zero-motion step
     obs, rew, done, _ = env.step(robot.create_action_vector({
         "right":         np.zeros(6),
-        "right_gripper": np.array([-1.0])
+        "right_gripper": np.array([-1.0]),
     }))
-    
 
-    q = obs["Bread_to_robot0_eef_quat"]  
-    R_obj2eef = R.from_quat([q[1], q[2], q[3], q[0]])
-    yaw_err, _, _ = R_obj2eef.inv().as_euler("zyx", degrees=False)
+    while True:
+        yaw_rad   = get_current_yaw_rad(obs)
+        yaw_deg10 = math.degrees(yaw_rad) * 10
 
-    while abs(yaw_err) > STEP_TIL:
-        step_ang  = np.sign(yaw_err) * STEP_ROT
-        action = {
-            "right":         np.array([0.0, 0.0, 0.0, 0.0, 0.0, step_ang]),
-            "right_gripper": np.array([-1.0]),  
-        }
-        a = robot.create_action_vector(action)
-        obs, rew, done,_ = env.step(a)
+        # if already out of the [8,82] band, we’re aligned
+        if band_distance(yaw_deg10) == 0:
+            break
+
+        # compute candidate yaw after +STEP_ROT or -STEP_ROT
+        step_deg10 = math.degrees(STEP_ROT) * 10
+        cand_plus  = yaw_deg10 + step_deg10
+        cand_minus = yaw_deg10 - step_deg10
+
+        # see which candidate yields smaller band_distance
+        err_plus  = band_distance(cand_plus)
+        err_minus = band_distance(cand_minus)
+
+        if err_plus < err_minus:
+            step_ang = +STEP_ROT
+        else:
+            step_ang = -STEP_ROT
+
+        action = robot.create_action_vector({
+            "right":         np.array([0,0,0,0,0, step_ang]),
+            "right_gripper": np.array([-1.0]),
+        })
+        obs, rew, done, _ = env.step(action)
 
 
+        # save images & logs
         for cam in cam_names:
-            img = obs[f"{cam}_image"][..., ::-1]   # RGB→BGR
-            img = np.flipud(img)
-            path = os.path.join(base_dir, cam, "image", f"{step:05d}.png")
+            img  = obs[f"{cam}_image"][..., ::-1]  # RGB→BGR
+            img  = np.flipud(img)
+            path = os.path.join(base_dir, cam, f"{step:05d}.png")
             write_q.put((path, img))
+
         step += 1
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(
+            obs, base_dir, cam_names,
+            step, action, rew, done, robot, data_records
+        )
 
-        q = obs["Bread_to_robot0_eef_quat"]
-        R_obj2eef = R.from_quat([q[1], q[2], q[3], q[0]])
-        yaw_err, _, _ = R_obj2eef.inv().as_euler("zyx", degrees=False)
-
-    return step, data_records 
+    return step, data_records
 
 def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records): 
 
@@ -508,12 +557,14 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     data_records = []
 
     ee_pos, _     = get_ee_pose(obs)
-    target_xy     = [0.13, 0.13, 0.6]
+    target_xy     = [0.05, 0.14, 0.6]
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
 
     # 2) rotate to object 
     step, data_records = rotate_to(env, robot, base_dir, cam_names, step, data_records)
+    # 2b) align position again
+    step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
 
     # 3) descend to object
     step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records)
