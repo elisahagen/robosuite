@@ -81,14 +81,13 @@ STEP_SIZE = 0.3
 UP_DOWN   = 0.25
 HOME_JOINTS = [0., np.pi/4., 0., -np.pi/4., 0., np.pi/2., 0.]
 
-STEP_XY   = 0.3
-STEP_Z    = 0.25
-STEP_ROT  = 0.07 
+STEP_XY = 0.3
+STEP_Z = 0.25
+STEP_ROT = 0.07 
 STEP_TIL = 0.08
 TOL_TIL = 0.1 
-TOL_XY    = 0.008
-TOL_Z     = 0.01
-TOL_YAW   = 0.01 
+TOL_XY = 0.005
+TOL_Z = 0.01
 
 def convert_obs(obs):
     """
@@ -229,7 +228,9 @@ def writer_loop(q):
     """Background thread: write out images to disk."""
     for item in iter(q.get, None):
         path, arr = item
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        folder = os.path.dirname(path)
+        if not os.path.isdir(folder): 
+            os.makedirs(folder, exist_ok=True)
         cv2.imwrite(path, arr)
     q.task_done()
 
@@ -433,9 +434,10 @@ def rotate_to(env, robot, base_dir, cam_names, step, data_records):
     def band_distance(deg10):
         """If outside [8,82], distance is zero; else distance to nearest edge."""
         mag = abs(deg10)
-        if mag <= 8 or mag >= 82:
+        if mag <= 5 or (mag >= 85 and mag <=95):
+            print("returned", mag)
             return 0.0
-        return min(mag - 8, 82 - mag)
+        return min(mag - 6, 84 - mag)
 
     # 1) seed with a zero-motion step
     obs, rew, done, _ = env.step(robot.create_action_vector({
@@ -443,11 +445,16 @@ def rotate_to(env, robot, base_dir, cam_names, step, data_records):
         "right_gripper": np.array([-1.0]),
     }))
 
+    last_yaw10 = None
+    last_dir = None
+    oscillate_count = 0
+
     while True:
         yaw_rad   = get_current_yaw_rad(obs)
         yaw_deg10 = math.degrees(yaw_rad) * 10
 
         # if already out of the [8,82] band, we’re aligned
+
         if band_distance(yaw_deg10) == 0:
             break
 
@@ -457,13 +464,33 @@ def rotate_to(env, robot, base_dir, cam_names, step, data_records):
         cand_minus = yaw_deg10 - step_deg10
 
         # see which candidate yields smaller band_distance
+
         err_plus  = band_distance(cand_plus)
         err_minus = band_distance(cand_minus)
+
+        print(yaw_deg10, err_plus, err_minus)
+        if (err_plus <= 0.1 and err_minus <= 0.1): 
+            break 
+
+        print(cand_plus, cand_minus, err_plus, err_minus)
 
         if err_plus < err_minus:
             step_ang = +STEP_ROT
         else:
             step_ang = -STEP_ROT
+
+        if last_dir is not None and np.sign(step_ang) != last_dir:
+            oscillate_count += 1
+        else:
+            # reset if we go same direction or first time
+            oscillate_count = 0
+
+        stall = last_yaw10 is not None and abs(yaw_deg10 - last_yaw10) < 0.8
+
+        if oscillate_count >= 40 or stall:
+            print(f"[rotate_to] detected oscillation/stall (oscillate_count={oscillate_count}, stall={stall}), aborting rotation")
+            break
+
 
         action = robot.create_action_vector({
             "right":         np.array([0,0,0,0,0, step_ang]),
@@ -484,6 +511,8 @@ def rotate_to(env, robot, base_dir, cam_names, step, data_records):
             obs, base_dir, cam_names,
             step, action, rew, done, robot, data_records
         )
+        last_yaw10 = yaw_deg10
+        last_dir   = np.sign(step_ang)
 
     return step, data_records
 
@@ -556,21 +585,39 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     target = None
     data_records = []
 
+    def abort_if_too_many_steps():
+        nonlocal step, base_dir
+        if step > 320:
+            print(f"[auto_pick_and_place] step {step} exceeded limit, aborting")
+            try:
+                shutil.rmtree(base_dir)
+                print(f"[auto_pick_and_place] deleted partial folder {base_dir}")
+            except Exception as e:
+                print(f"[auto_pick_and_place] failed to delete {base_dir}: {e}")
+            return True
+        return False
+
     ee_pos, _     = get_ee_pose(obs)
     target_xy     = [0.05, 0.14, 0.6]
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
+    if abort_if_too_many_steps(): return
 
     # 2) rotate to object 
     step, data_records = rotate_to(env, robot, base_dir, cam_names, step, data_records)
+    if abort_if_too_many_steps(): return
+
     # 2b) align position again
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
+    if abort_if_too_many_steps(): return
 
     # 3) descend to object
     step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records)
+    if abort_if_too_many_steps(): return
 
     # 4) close gripper
     obs,rew, done,  _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([+1.0])}))
+    if abort_if_too_many_steps(): return
     step += 1
 
     # 5) lift up 15cm
@@ -591,7 +638,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
 
 if __name__ == "__main__":
 
-    base_dir = f"../teleop_dataset_auto_{datetime.now():%Y%m%d_%H%M%S}"
+    base_dir = f"/home/elisa/Documents/data/robosuite_automated/teleop_dataset_auto_{datetime.now():%Y%m%d_%H%M%S}"
     cam_names = ["left_side_view", "right_side_view",
                  "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"]
 
