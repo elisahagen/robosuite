@@ -17,6 +17,7 @@ from robosuite.environments.manipulation.pick_place import PickPlace
 from robosuite.models.arenas.multi_table_arena import MultiTableArena
 from custom_assets.BinToBinTransfer import BinToBinTransfer
 from scipy.spatial.transform import Rotation as R
+import shutil
 import trimesh
 from robosuite.models.objects import BreadObject
 import xml.etree.ElementTree as ET
@@ -85,9 +86,26 @@ STEP_XY = 0.3
 STEP_Z = 0.25
 STEP_ROT = 0.07 
 STEP_TIL = 0.08
-TOL_TIL = 0.1 
+TOL_TIL = 0.025
 TOL_XY = 0.005
-TOL_Z = 0.01
+TOL_Z = 0.008
+
+def load_canonical_mesh_from_asset(xml_path):
+    txt = open(xml_path, 'r').read()
+    wrapped = "<root>\n" + txt + "\n</root>"
+    root = ET.fromstring(wrapped)
+
+    # 2) find the first <mesh> anywhere under it
+    mesh_elem = root.find(".//mesh")
+    mesh_file = mesh_elem.attrib["file"]
+    scale_str = mesh_elem.attrib.get("scale", "1 1 1")
+    scales = [float(s) for s in scale_str.split()]
+
+    # 3) resolve path and load+scale
+    mesh_path = os.path.join(os.path.dirname(xml_path), mesh_file)
+    mesh = trimesh.load(mesh_path, force="mesh")
+    mesh.apply_scale(scales)
+    return mesh
 
 def convert_obs(obs):
     """
@@ -340,6 +358,10 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records):
     Phase 1: Hold Z constant; move in X–Y only until within TOL_XY.
     """
     obs, rew, done, _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([-1.0])}))
+    oscillate_cnt = total_steps = 0
+    last_sign = None
+    last_err  = None
+
     while True:
         
         rel_pos = np.array(obs["Bread_to_robot0_eef_pos"])  # [x,y,z] from bread→eef
@@ -348,8 +370,18 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records):
         if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
             break
 
+        if last_sign is not None and sign != last_sign:
+            oscillate_cnt += 1
+        else:
+            oscillate_cnt = 0
+            total_steps  += 1
+        
+        if oscillate_cnt >= 6:
+            break
+        
         step_x = STEP_XY * np.sign(dx)
         step_y = STEP_XY * np.sign(dy)
+        sign   = np.sign(step_x or step_y) 
 
         action = {
             "right":         np.array([ step_x, -step_y, 0,  0,0,0 ]),
@@ -413,108 +445,81 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         
     return step, data_records 
 
-STEP_ROT_DEG = 5    # rotate up to 5° each step
-TOLERANCE_DEG = 6
+
+def quat_to_axis_angle(q):
+    """Normalize q then return (axis, angle_rad)."""
+    q = q / np.linalg.norm(q)
+    w, xyz = q[0], q[1:]
+    angle = 2 * math.acos(np.clip(w, -1.0, 1.0))
+    s = math.sqrt(max(0.0, 1 - w*w))
+    if s < 1e-8:
+        return np.array([1.0, 0.0, 0.0]), 0.0
+    return xyz / s, angle
+
+def axis_angle_to_quat(axis, angle_rad):
+    axis = axis / np.linalg.norm(axis)
+    half = angle_rad / 2.0
+    return np.array([ math.cos(half), *(axis * math.sin(half)) ])
 
 def rotate_to(env, robot, base_dir, cam_names, step, data_records):
     """
-    Rotate your end‐effector so that its axes line up with the object,
-    stepping in ROT_STEP until the axis‐angle error is below ROT_TOL.
+    Rotate end-effector around its local z-axis to align yaw to 90° (TARGET_YAW),
+    stepping by STEP_ROT until within ROT_TOL radians.
     """
 
-    # 1) Seed with a zero-motion step to get initial obs
-    def get_current_yaw_rad(obs):
-        # obs["Bread_to_robot0_eef_quat"] is [w, x, y, z]
-        w, x, y, z = obs["Bread_to_robot0_eef_quat"]
-        q = [x, y, z, w]                       # reorder for scipy
-        R_obj2eef = R.from_quat(q).inv()       # gripper→object
-        yaw, _, _ = R_obj2eef.as_euler("zyx", degrees=False)
-        return yaw
-
-    def band_distance(deg10):
-        """If outside [8,82], distance is zero; else distance to nearest edge."""
-        mag = abs(deg10)
-        if mag <= 5 or (mag >= 85 and mag <=95):
-            print("returned", mag)
-            return 0.0
-        return min(mag - 6, 84 - mag)
-
-    # 1) seed with a zero-motion step
     obs, rew, done, _ = env.step(robot.create_action_vector({
-        "right":         np.zeros(6),
+        "right": np.zeros(6),
         "right_gripper": np.array([-1.0]),
     }))
-
-    last_yaw10 = None
-    last_dir = None
-    oscillate_count = 0
+    TARGETS = [0, 90, 180, 270]
+    TOL_DEG = 10
+    STEP_RAD = 0.2
+    oscillation_count = 0
+    last_sign = None
 
     while True:
-        yaw_rad   = get_current_yaw_rad(obs)
-        yaw_deg10 = math.degrees(yaw_rad) * 10
 
-        # if already out of the [8,82] band, we’re aligned
+        q_cur = obs["Bread_to_robot0_eef_quat"]
+        STEPSIZE_DEG = 2.0
 
-        if band_distance(yaw_deg10) == 0:
+        axis, angle = quat_to_axis_angle(q_cur)
+        angle_deg = math.degrees(angle)
+
+        if any(abs(angle_deg - tgt) <= TOL_DEG for tgt in TARGETS):
+            print("Aligned within tolerance of a 90° increment.")
             break
 
-        # compute candidate yaw after +STEP_ROT or -STEP_ROT
-        step_deg10 = math.degrees(STEP_ROT) * 10
-        cand_plus  = yaw_deg10 + step_deg10
-        cand_minus = yaw_deg10 - step_deg10
+        x_component = axis[0] * angle
+        step_rad =  STEP_RAD if x_component > 0 else -STEP_RAD
 
-        # see which candidate yields smaller band_distance
+        closest = min(TARGETS, key=lambda tgt: abs(angle_deg - tgt))
+        delta_deg = (closest - angle_deg)
+        delta_rad = math.radians(delta_deg)
 
-        err_plus  = band_distance(cand_plus)
-        err_minus = band_distance(cand_minus)
+        sign      = np.sign(delta_deg)
+        step_rad  = STEP_RAD * sign
 
-        print(yaw_deg10, err_plus, err_minus)
-        if (err_plus <= 0.1 and err_minus <= 0.1): 
-            break 
-
-        print(cand_plus, cand_minus, err_plus, err_minus)
-
-        if err_plus < err_minus:
-            step_ang = +STEP_ROT
+        if last_sign is not None and sign != last_sign:
+            oscillate_cnt += 1
         else:
-            step_ang = -STEP_ROT
-
-        if last_dir is not None and np.sign(step_ang) != last_dir:
-            oscillate_count += 1
-        else:
-            # reset if we go same direction or first time
-            oscillate_count = 0
-
-        stall = last_yaw10 is not None and abs(yaw_deg10 - last_yaw10) < 0.8
-
-        if oscillate_count >= 40 or stall:
-            print(f"[rotate_to] detected oscillation/stall (oscillate_count={oscillate_count}, stall={stall}), aborting rotation")
+            oscillate_cnt = 0
+        
+        if oscillate_cnt >= 6:
+            print(f"[rotate_to] aborting (osc={oscillate_cnt})")
             break
-
-
-        action = robot.create_action_vector({
-            "right":         np.array([0,0,0,0,0, step_ang]),
-            "right_gripper": np.array([-1.0]),
-        })
-        obs, rew, done, _ = env.step(action)
-
-
-        # save images & logs
-        for cam in cam_names:
-            img  = obs[f"{cam}_image"][..., ::-1]  # RGB→BGR
-            img  = np.flipud(img)
-            path = os.path.join(base_dir, cam, f"{step:05d}.png")
-            write_q.put((path, img))
-
+    
+        action = {
+            "right":         np.array([0.0, 0.0, 0.0, 0.0, 0.0, step_rad]),
+            "right_gripper": np.array([-1.0])
+        }
+        a = robot.create_action_vector(action)
+        obs, rew, done, _ = env.step(a)
+        
+        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
-        data_records = save_img_info(
-            obs, base_dir, cam_names,
-            step, action, rew, done, robot, data_records
-        )
-        last_yaw10 = yaw_deg10
-        last_dir   = np.sign(step_ang)
-
+        last_sign = sign 
     return step, data_records
+
 
 def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records): 
 
@@ -584,6 +589,8 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     step = 0
     target = None
     data_records = []
+
+
 
     def abort_if_too_many_steps():
         nonlocal step, base_dir
@@ -671,8 +678,15 @@ if __name__ == "__main__":
         save_intrinsic_extrinsic(env, cam, base_dir)
 
     robot = env.robots[0]
+    
+    xml_path = "/home/elisa/Documents/masterthesis/git/robosuite/robosuite/models/assets/objects/bread_asset.xml"
+    bread_canonical = load_canonical_mesh_from_asset(xml_path)
+    canonical_out = os.path.join(base_dir, "bread_canonical.ply")
+    bread_canonical.export(canonical_out, file_type="ply", encoding="ascii")
+    print(f"[+] wrote canonical bread mesh → {canonical_out}")
 
     auto_pick_and_place(env, robot, write_q, base_dir, cam_names)
+
 
     env.close()
     print(f"Data saved under {base_dir}")
