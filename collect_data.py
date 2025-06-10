@@ -640,7 +640,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     instr = get_instruction(base_dir, target_object)
     save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
 
-    print("✅ Completed automatic pick-and-place")
+    print("Completed automatic pick-and-place")
 
 
 if __name__ == "__main__":

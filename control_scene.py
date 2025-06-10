@@ -369,6 +369,7 @@ def main(task):
             arm_delta = np.concatenate([delta, delta_rot])
             action_dict = {"right": arm_delta, "right_gripper": np.array([gripper_state])}
             action = robot.create_action_vector(action_dict)
+            print("action", action)
             obs, reward, done, info = env.step(action)
 
             # NEW: print gripper z position
