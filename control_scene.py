@@ -108,7 +108,13 @@ def convert_obs(obs):
         return [convert_obs(elem) for elem in obs]
     else:
         return obs
-    
+
+def convert_depth_buffer_to_meters(depth_buffer, near=0.01, far=10.0):
+    z_n = depth_buffer
+    z_e = 2.0 * z_n - 1.0  # Convert [0,1] to [-1,1] (NDC space)
+    depth = (2.0 * near * far) / (far + near - z_e * (far - near))
+    return depth
+
 def save_intrinsic_extrinsic(env, cam, base_dir):
     cam_id = env.sim.model.camera_name2id(cam)
     print(cam)
@@ -431,7 +437,13 @@ def main(task):
                 depth_key = f"{cam}_depth"
                 if depth_key in obs:
                     depth_img = obs[depth_key]
-                    
+                    depth_img = obs[depth_key]
+                    depth_meters = convert_depth_buffer_to_meters(depth_img)  # Normalized → metric
+                    depth_mm = (depth_meters * 1000).astype(np.uint16)        # Convert to millimeters
+                    depth_mm = cv2.flip(depth_mm, 0)                           # Flip vertically to match visual format
+                    depth_filename = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
+                    cv2.imwrite(depth_filename, depth_mm)
+                    log_entry[depth_key] = depth_filename
                     # raw_depth_path = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.npy")
                     # np.save(raw_depth_path, depth_img)
                     # log_entry[depth_key] = raw_depth_path
@@ -442,20 +454,20 @@ def main(task):
                     # depth_png_path = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}_vis.png")
                     # cv2.imwrite(depth_png_path, depth_vis)
                     # log_entry[f"{depth_key}_vis"] = depth_png_path
-                    d_min, d_max = depth_img.min(), depth_img.max()
-                    if d_max - d_min > 1e-6:
-                        depth_normalized = (depth_img - d_min) / (d_max - d_min) * 255
-                    else:
-                        depth_normalized = depth_img *1 
-                    depth_normalized = depth_normalized.astype(np.uint8)
-                    depth_normalized = cv2.flip(depth_normalized, 0)
-                    depth_filename = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
-                    cv2.imwrite(depth_filename, depth_normalized)
-                    # if cv2.imwrite(depth_filename, depth_normalized):
-                    #     #print(f"Saved depth image: {depth_filename}")
+                    # d_min, d_max = depth_img.min(), depth_img.max()
+                    # if d_max - d_min > 1e-6:
+                    #     depth_normalized = (depth_img - d_min) / (d_max - d_min) * 255
                     # else:
-                    #     print(f"Failed to save depth image: {depth_filename}")
-                    log_entry[depth_key] = depth_filename
+                    #     depth_normalized = depth_img *1 
+                    # depth_normalized = depth_normalized.astype(np.uint8)
+                    # depth_normalized = cv2.flip(depth_normalized, 0)
+                    # depth_filename = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
+                    # cv2.imwrite(depth_filename, depth_normalized)
+                    # # if cv2.imwrite(depth_filename, depth_normalized):
+                    # #     #print(f"Saved depth image: {depth_filename}")
+                    # # else:
+                    # #     print(f"Failed to save depth image: {depth_filename}")
+                    # log_entry[depth_key] = depth_filename
 
                 seg_key = f"{cam}_segmentation_class"
                 if seg_key in obs:
