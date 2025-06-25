@@ -6,7 +6,7 @@ from custom_assets.BinToBinTransfer import BinToBinTransfer
 from datetime import datetime
 
 
-base_dir = "/home/elisa/Documents/data/robosuite_automated/I/teleop_dataset_auto_20250610_100101/"  
+base_dir = "/home/elisa/Documents/data/robosuite_automated/H/teleop_dataset_auto_20250610_095617/"  
 demo_file = os.path.join(base_dir, "teleop_demo.json")
 with open(demo_file, "r") as f:
     demo_data = json.load(f)["data"]

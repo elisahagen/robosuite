@@ -90,6 +90,18 @@ TOL_TIL = 0.025
 TOL_XY = 0.005
 TOL_Z = 0.008
 
+def abort_if_too_many_steps(step, base_dir =None):
+
+    if step > 320:
+        print(f"[auto_pick_and_place] step {step} exceeded limit, aborting")
+        try:
+            shutil.rmtree(base_dir)
+            print(f"[auto_pick_and_place] deleted partial folder {base_dir}")
+        except Exception as e:
+            print(f"[auto_pick_and_place] failed to delete {base_dir}: {e}")
+        return True
+    return False
+
 def load_canonical_mesh_from_asset(xml_path):
     txt = open(xml_path, 'r').read()
     wrapped = "<root>\n" + txt + "\n</root>"
@@ -127,17 +139,21 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
     fovy = env.sim.model.cam_fovy[cam_id]
     width = env.camera_widths[env.camera_names.index(cam)]
     height = env.camera_heights[env.camera_names.index(cam)]
-    focal_length = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
+    # focal_length = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
+
+    fovy_rad = np.deg2rad(fovy)
+    fy = 0.5 * height / np.tan(fovy_rad / 2)
+    fx = fy * (width / height)
 
     intrinsics = {
         "camera_name": cam,
         "image_width": width,
         "image_height": height,
         "fovy_deg": fovy,
-        "focal_length_px": focal_length,
+        "focal_length_px": {"fx": fx, "fy": fy},
         "intrinsic_matrix_K": [
-            [focal_length, 0, width / 2],
-            [0, focal_length, height / 2],
+            [fx, 0, width / 2],
+            [0, fy, height / 2],
             [0, 0, 1]
         ]
     }
@@ -268,6 +284,13 @@ def get_object_pose(obs, obj_name="Bread"):
     """Read the world pose of your object from the obs dict."""
     return np.array(obs[f"{obj_name}_pos"]), np.array(obs[f"{obj_name}_quat"])
 
+def convert_depth_buffer_to_meters(depth_buffer, near=0.01, far=10.0):
+    z_n = depth_buffer
+    z_e = 2.0 * z_n - 1.0  # Convert [0,1] to [-1,1] (NDC space)
+    depth = (2.0 * near * far) / (far + near - z_e * (far - near))
+    return depth
+
+
 def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, data_records):
     small_obs = {
         k: v for k, v in obs.items()
@@ -331,13 +354,19 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         write_q.put((p, rgb))
 
         d = obs[f"{cam}_depth"].astype(np.float32)
-        mn, mx = d.min(), d.max()
-        rng = mx - mn if (mx - mn) > 1e-6 else 1e-6
-        norm = ((d - mn) / rng * 255).astype(np.uint8)
-        norm = np.flipud(norm)
-        cam_depth = cam + "_depth"
-        p = os.path.join(base_dir, cam_depth, f"{step:05d}.png")
-        write_q.put((p, norm))
+        depth_meters = convert_depth_buffer_to_meters(d)  # from normalized depth
+        depth_mm = (depth_meters * 1000).astype(np.uint16)
+        depth_mm_flipped = np.flipud(depth_mm)
+
+        depth_png_path = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
+        write_q.put((depth_png_path, depth_mm_flipped))
+        # mn, mx = d.min(), d.max()
+        # rng = mx - mn if (mx - mn) > 1e-6 else 1e-6
+        # norm = ((d - mn) / rng * 255).astype(np.uint8)
+        # norm = np.flipud(norm)
+        # cam_depth = cam + "_depth"
+        # p = os.path.join(base_dir, cam_depth, f"{step:05d}.png")
+        # write_q.put((p, norm))
 
         # Segmentation
         mask = obs[f"{cam}_segmentation_class"]
@@ -392,6 +421,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records):
         data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
 
         step += 1
+        abort_if_too_many_steps(step)
 
 
     return step, data_records
@@ -442,6 +472,7 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         obs, rew, done, _ = env.step(a)
         data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
+        abort_if_too_many_steps(step)
         
     return step, data_records 
 
@@ -518,6 +549,7 @@ def rotate_to(env, robot, base_dir, cam_names, step, data_records):
         data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
         last_sign = sign 
+        abort_if_too_many_steps(step)
     return step, data_records
 
 
@@ -531,12 +563,13 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         gx, gy = obs["robot0_eef_pos"][:2]
         dx, dy = gx - target_xy[0], gy - target_xy[1]
         # check tolerance
-        if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
+        # if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
+        if abs(dy) < TOL_XY: 
             break
         step_x = -STEP_XY * np.sign(dx)
         step_y = -STEP_XY * np.sign(dy)
         action = {
-            "right":         np.array([step_x, step_y, 0.0, 0.0, 0.0, 0.0]),
+            "right":         np.array([0.0, step_y, 0.0, 0.0, 0.0, 0.0]),
             "right_gripper": np.array([+1.0])
         }
         a = robot.create_action_vector(action)
@@ -666,11 +699,11 @@ if __name__ == "__main__":
         has_offscreen_renderer=True,
         use_camera_obs=True,
         camera_names=cam_names,
-        camera_heights=[480]*4,
-        camera_widths =[640]*4,
+        camera_heights=480,
+        camera_widths =640,
         camera_depths=True,
-        camera_segmentations=["class"]*4,
-        control_freq=20,
+        camera_segmentations=["class", "class", "class", "class"],
+        control_freq=10,
         ignore_done=True,
         hard_reset=False,
     )

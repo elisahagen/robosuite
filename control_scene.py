@@ -94,7 +94,6 @@ KEY_TO_ROTATION = {
     ord('m'): np.array([0, 0, -ROT_STEP]),  # rotate z-
 }
 
-TARGET_EEF_POS = np.array([0.58232898, 0.21374725, 0.18609748])
 
 def convert_obs(obs):
     """
@@ -112,22 +111,26 @@ def convert_obs(obs):
     
 def save_intrinsic_extrinsic(env, cam, base_dir):
     cam_id = env.sim.model.camera_name2id(cam)
-
+    print(cam)
     # --- Intrinsics ---
     fovy = env.sim.model.cam_fovy[cam_id]
+    print("Fovy", cam_id,fovy)
     width = env.camera_widths[env.camera_names.index(cam)]
     height = env.camera_heights[env.camera_names.index(cam)]
-    focal_length = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
+    # focal_length = 0.5 * height / np.tan(np.deg2rad(fovy / 2))
+    fovy_rad = np.deg2rad(fovy)
+    fy = 0.5 * height / np.tan(fovy_rad / 2)
+    fx = fy * (width / height)
 
     intrinsics = {
         "camera_name": cam,
         "image_width": width,
         "image_height": height,
         "fovy_deg": fovy,
-        "focal_length_px": focal_length,
+        "focal_length_px":  {"fx": fx, "fy": fy},
         "intrinsic_matrix_K": [
-            [focal_length, 0, width / 2],
-            [0, focal_length, height / 2],
+            [fx, 0, width / 2],
+            [0, fy, height / 2],
             [0, 0, 1]
         ]
     }
@@ -369,7 +372,7 @@ def main(task):
             arm_delta = np.concatenate([delta, delta_rot])
             action_dict = {"right": arm_delta, "right_gripper": np.array([gripper_state])}
             action = robot.create_action_vector(action_dict)
-            print("action", action)
+           #  print("action", action)
             obs, reward, done, info = env.step(action)
 
             # NEW: print gripper z position
@@ -428,11 +431,22 @@ def main(task):
                 depth_key = f"{cam}_depth"
                 if depth_key in obs:
                     depth_img = obs[depth_key]
+                    
+                    # raw_depth_path = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.npy")
+                    # np.save(raw_depth_path, depth_img)
+                    # log_entry[depth_key] = raw_depth_path
+
+                    # (2) Save visualization as 8-bit PNG
+                    # depth_vis = depth_img
+                    # depth_vis = cv2.flip(depth_vis, 0)
+                    # depth_png_path = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}_vis.png")
+                    # cv2.imwrite(depth_png_path, depth_vis)
+                    # log_entry[f"{depth_key}_vis"] = depth_png_path
                     d_min, d_max = depth_img.min(), depth_img.max()
                     if d_max - d_min > 1e-6:
                         depth_normalized = (depth_img - d_min) / (d_max - d_min) * 255
                     else:
-                        depth_normalized = depth_img * 0
+                        depth_normalized = depth_img *1 
                     depth_normalized = depth_normalized.astype(np.uint8)
                     depth_normalized = cv2.flip(depth_normalized, 0)
                     depth_filename = os.path.join(base_dir, f"{cam}_depth", f"{step:05d}.png")
