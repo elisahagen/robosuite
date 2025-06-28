@@ -39,26 +39,28 @@
 
     
     <!-- Bin body template -->
-    <body name="bin1" pos="0.1 -0.25 0.8">
+    <body name="bin1" pos="0.1 -0.25 0.1">
     <!-- Bin floor -->
 
-    <geom name="bin1_bottom" type="box" size="0.13 0.13 0.02" pos="0 0.05 0.1" material="blue-plastic" group="1"/>
+    <geom name="bin1_bottom" type="box" size="0.13 0.13 0.005" pos="0 0.05 0.1" material="blue-plastic" group="1"/>
 
     <!-- Bin walls -->
+    <!--
     <geom name="bin1_wall_back" type="box" size="0.13 0.013 0.05" pos="0 0.175 0.1" material="blue-plastic" group="1"/>
     <geom name="bin1_wall_front" type="box" size="0.13 0.013 0.05" pos="0 -0.075 0.1" material="blue-plastic" group="1"/>
     <geom name="bin1_wall_left" type="box" size="0.01 0.13 0.05" pos="-0.125 0.05 0.1" material="blue-plastic" group="1"/>
     <geom name="bin1_wall_right" type="box" size="0.01 0.13 0.05" pos="0.125 0.05 0.1" material="blue-plastic" group="1"/>
+    -->
     </body>
     
 
-    <body name="bin2" pos="0.1 -0.3 0.8">
-    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.02" pos="0 -0.15 0.08" material="blue-plastic" group="1"/>
+    <body name="bin2" pos="0.1 -0.3 0.07">
+    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.02" pos="0 -0.15 0.07" material="blue-plastic" group="1"/>
 
-    <geom name="bin2_wall_back" type="box" size="0.13 0.005 0.05" pos="0 -0.055 0.08" material="blue-plastic" group="1"/>
-    <geom name="bin2_wall_front" type="box" size="0.13 0.005 0.05" pos="0 -0.275 0.08" material="blue-plastic" group="1"/>
-    <geom name="bin2_wall_left" type="box" size="0.005 0.13 0.05" pos="-0.12 -0.15 0.08" material="blue-plastic" group="1"/>
-    <geom name="bin2_wall_right" type="box" size="0.005 0.13 0.05" pos="0.12 -0.15 0.08" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_back" type="box" size="0.13 0.005 0.05" pos="0 -0.025 0.07" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_front" type="box" size="0.13 0.005 0.05" pos="0 -0.275 0.07" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_left" type="box" size="0.005 0.13 0.05" pos="-0.13 -0.15 0.07" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_right" type="box" size="0.005 0.13 0.05" pos="0.13 -0.15 0.07" material="blue-plastic" group="1"/>
     </body>
     <!-- <geom name="cube_left" type="box" size="0.04 0.04 0.04" pos="-0.1 0.12 0.04" material="light-gray-plaster" group="1" />
     <geom name="cube_right" type="box" size="0.04 0.04 0.04" pos="0.1 0.12 0.04" material="light-gray-plaster" group="1" />
@@ -67,13 +69,15 @@
     <!--<geom name="conveyor" type="box" size="0.4 1.2 0.02" pos="0.1 -0.4 0.01" rgba="0 0 0 1" group="1"/> -->
 
     <!--create table around bins-->
-    <body name="table" pos="0.1 0.28 0.8">
+    <body name="table" pos="0.1 0.28 0.73">
     <geom name="table1" type="box" size="0.2 0.25 0.05" pos="0.0 -0.855 0.12" rgba="0 0 0 1" group="1"/>
     <geom name="table2" type="box" size="0.2 0.034 0.05" pos="0.0 -0.315 0.12" rgba="0 0 0 1" group="1"/>
     <geom name="table3" type="box" size="0.2 0.25 0.05" pos="0.0 0.2 0.12" rgba="0 0 0 1" group="1"/>
     <geom name="table4" type="box" size="0.05 0.6 0.05" pos="0.175 -0.35 0.12" rgba="0 0 0 1" group="1"/>
     <geom name="table5" type="box" size="0.05 0.7 0.05" pos="-0.175 -0.35 0.12" rgba="0 0 0 1" group="1"/>
+    
     </body>
+    
 
 
     <!-- front view -->

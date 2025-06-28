@@ -4,9 +4,9 @@ import os
 from robosuite import load_composite_controller_config
 from custom_assets.BinToBinTransfer import BinToBinTransfer  
 from datetime import datetime
+import time
 
-
-base_dir = "/home/elisa/Documents/data/robosuite_automated/H/teleop_dataset_auto_20250610_095617/"  
+base_dir = "/home/elisa/Documents/masterthesis/git/teleop_dataset_eef/teleop_dataset_blue_bin_multi_object_picking_bread_20250625_122443/"  
 demo_file = os.path.join(base_dir, "teleop_demo.json")
 with open(demo_file, "r") as f:
     demo_data = json.load(f)["data"]
@@ -27,7 +27,7 @@ env = BinToBinTransfer(
     has_offscreen_renderer=False,
     use_camera_obs=False,
     camera_names=cam_names,
-    control_freq=20,
+    control_freq=10,
     ignore_done=True,
     hard_reset=True
 )
@@ -45,6 +45,7 @@ env.sim.data.set_joint_qpos(joint_name, np.concatenate([bread_pos, bread_quat]))
 env.sim.forward()
 
 for i, step_data in enumerate(demo_data):
+    time.sleep(0.3)
     action = np.array(step_data["action"])
     obs, reward, done, _ = env.step(action)
 
