@@ -205,7 +205,8 @@ def main(task):
             camera_segmentations=["class", "class", "class", "class"],
             control_freq=10,
             ignore_done=True,
-            hard_reset=False
+            hard_reset=True,
+            initialization_noise=None
         )
     if task == "robotic_cell":
         camera_names = ['robot0_robotview', "frontview"]
@@ -225,7 +226,8 @@ def main(task):
             camera_depths=True,
             control_freq=10,
             ignore_done=True,
-            hard_reset=False
+            hard_reset=True,
+            initialization_noise=None
         )
     elif task == "lift":
         camera_names = ["frontview", "agentview", "sideview"]

@@ -88,7 +88,7 @@ STEP_ROT = 0.07
 STEP_TIL = 0.08
 TOL_TIL = 0.025
 TOL_XY = 0.005
-TOL_Z = 0.008
+TOL_Z = 0.004
 
 def abort_if_too_many_steps(step, base_dir =None):
 
@@ -160,12 +160,14 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
 
     # --- Extrinsics ---
     cam_pos = env.sim.model.cam_pos[cam_id].tolist()
-    cam_quat = env.sim.model.cam_quat[cam_id]  # [w, x, y, z]
+    cam_quat = env.sim.model.cam_quat[cam_id]  # [x, y, z, w]
+    
     rotation_matrix = R.from_quat([cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]).as_matrix().tolist()
-
+    cam_quat = [cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]
+    
     extrinsics = {
         "position_xyz": cam_pos,
-        "rotation_quaternion_wxyz": cam_quat.tolist(),
+        "rotation_quaternion_wxyz": cam_quat,
         "rotation_matrix": rotation_matrix,
         "camera_to_world_matrix": [
             rotation_matrix[0] + [cam_pos[0]],
@@ -278,7 +280,8 @@ def get_ee_pose(obs):
     """Return end-effector position & quaternion (x,y,z,w)."""
     pos  = obs["robot0_eef_pos"]
     quat = obs["robot0_eef_quat"]
-    return np.array(pos), np.array(quat)
+    cor_quat = quat[[3, 0, 1, 2]]
+    return np.array(pos), np.array(cor_quat)
 
 def get_object_pose(obs, obj_name="Bread"):
     """Read the world pose of your object from the obs dict."""
@@ -299,6 +302,7 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
     # EEF
     eef_pos   = robot._hand_pos["right"]
     eef_quat  = robot._hand_quat["right"]
+    eef_quat = eef_quat[[3, 0, 1, 2]] 
     small_obs["state.pos_xyzquat_right"] = np.concatenate([eef_pos, eef_quat]).tolist()
 
     # joint state
@@ -592,10 +596,11 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         "right":         np.zeros(6),
         "right_gripper": np.array([-1.0])
     }
-    a = robot.create_action_vector(action)
-    obs, rew, done, _ = env.step(a)
-    data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
-    step += 1
+    for i in range(10):
+        a = robot.create_action_vector(action)
+        obs, rew, done, _ = env.step(a)
+        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        step += 1
 
     for _ in range(25):
         action = {
@@ -656,9 +661,19 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     if abort_if_too_many_steps(): return
 
     # 4) close gripper
-    obs,rew, done,  _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([+1.0])}))
-    if abort_if_too_many_steps(): return
-    step += 1
+    for i in range(10):
+        
+        action = {
+            "right":         np.array([0,0,0, 0,0,0 ]),
+            "right_gripper": np.array([+1.0]),
+        }
+        
+        action = robot.create_action_vector(action)
+        
+        obs,rew, done,  _ = env.step(action)
+        save_img_info(obs, base_dir, cam_names, step, action, rew, done, robot, data_records)
+        if abort_if_too_many_steps(): return
+        step += 1
 
     # 5) lift up 15cm
     target =  np.array([0,0,0.13])
@@ -705,7 +720,8 @@ if __name__ == "__main__":
         camera_segmentations=["class", "class", "class", "class"],
         control_freq=10,
         ignore_done=True,
-        hard_reset=False,
+        hard_reset=True,
+        initialization_noise=None
     )
     for cam in cam_names:
         save_intrinsic_extrinsic(env, cam, base_dir)

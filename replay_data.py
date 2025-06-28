@@ -6,7 +6,7 @@ from custom_assets.BinToBinTransfer import BinToBinTransfer
 from datetime import datetime
 import time
 
-base_dir = "/home/elisa/Documents/masterthesis/git/teleop_dataset_eef/teleop_dataset_blue_bin_multi_object_picking_bread_20250625_122443/"  
+base_dir = "/home/elisa/Documents/data/robosuite_automated/teleop_dataset_auto_20250628_221757/"  
 demo_file = os.path.join(base_dir, "teleop_demo.json")
 with open(demo_file, "r") as f:
     demo_data = json.load(f)["data"]
@@ -19,6 +19,7 @@ cam_names = ["left_side_view", "right_side_view",
 init_obs = demo_data[0]["observation"]
 bread_pos = np.array(init_obs["Bread_pos"])
 bread_quat = np.array(init_obs["Bread_quat"])
+bread_quat = bread_quat[[3, 0, 1, 2]] 
 
 env = BinToBinTransfer(
     robots="Panda",
@@ -29,7 +30,8 @@ env = BinToBinTransfer(
     camera_names=cam_names,
     control_freq=10,
     ignore_done=True,
-    hard_reset=True
+    hard_reset=True, 
+    initialization_noise=None,  
 )
 
 

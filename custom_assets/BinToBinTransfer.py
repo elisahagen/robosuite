@@ -19,7 +19,7 @@ class BinToBinTransfer(PickPlace):
     def _construct_objects(self):
         from robosuite.models.objects import BreadObject
         from robosuite.models.objects import BoxObject
-        # self.objects = [BoxObject(name="Box", size=[0.018, 0.018, 0.018])] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
+        # self.objects = [BoxObject(name="Box", size=[0.02, 0.02, 0.02])] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
         self.objects = [BreadObject(name="Bread")] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
         # self.objects2 = [cube1, cube2]
     def _construct_visual_objects(self):

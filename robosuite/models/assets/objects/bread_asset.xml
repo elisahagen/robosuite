@@ -1,6 +1,6 @@
 <!-- bread_asset.xml -->
 <asset>
-  <mesh file="meshes/bread.stl" name="bread_mesh" scale="0.8 0.8 0.8"/>
+  <mesh file="meshes/bread.stl" name="bread_mesh" scale="0.7 0.7 0.7"/>
   <texture file="../textures/bread.png" type="2d" name="tex-bread" />
   <material name="bread" reflectance="0.7" texrepeat="15 15" texture="tex-bread" texuniform="true"/>
 </asset>
