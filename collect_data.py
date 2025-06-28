@@ -162,7 +162,7 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
     cam_pos = env.sim.model.cam_pos[cam_id].tolist()
     cam_quat = env.sim.model.cam_quat[cam_id]  # [x, y, z, w]
     
-    rotation_matrix = R.from_quat([cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]).as_matrix().tolist()
+    rotation_matrix = R.from_quat(cam_quat).as_matrix().tolist()
     cam_quat = [cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]
     
     extrinsics = {
@@ -344,7 +344,7 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
     drot  = action_vec[3:6]    
     grip  = action_vec[6]
 
-    rec["action.pos_xyzquat_right"]   = np.concatenate([delta, R.from_rotvec(drot).as_quat()]).tolist()
+    rec["action.pos_xyzquat_right"]   = np.concatenate([delta, R.from_rotvec(drot).as_quat(scalar_first=True)]).tolist()
     rec["action.joint_state"]         = action_vec.tolist()
     rec["action.position_normalized"] = [grip]
 
