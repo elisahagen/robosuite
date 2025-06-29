@@ -299,21 +299,25 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         k: v for k, v in obs.items()
         if not (k.endswith("_image") or k.endswith("_depth") or k.endswith("_segmentation_class"))
     }
+    # print("small_obs", small_obs.keys())
     # EEF
-    eef_pos   = robot._hand_pos["right"]
-    eef_quat  = robot._hand_quat["right"]
+    eef_pos   = obs["robot0_eef_pos"]
+    eef_quat = obs["robot0_eef_quat"]
     eef_quat = eef_quat[[3, 0, 1, 2]] 
     small_obs["state.pos_xyzquat_right"] = np.concatenate([eef_pos, eef_quat]).tolist()
 
     # joint state
     jidxs = robot._ref_joint_pos_indexes
     js    = robot.sim.data.qpos[jidxs].copy()
-    small_obs["state.joint_state"] = js.tolist()
+    small_obs["state.joint_state"] = obs["robot0_joint_pos"]
+    #print(dir(robot.sim.data))
 
+    
     # gripper opening
-    gidxs = list(robot._ref_gripper_joint_pos_indexes.values())
-    gp    = robot.sim.data.qpos[gidxs].mean()
+    gp    = obs["robot0_gripper_qpos"][0]
+    #print("gripper position", gp)
     small_obs["state.position_normalized"] = [float(gp)]
+    # print("small_obs", small_obs)
 
     # assemble record
     rec = {
