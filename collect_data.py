@@ -92,7 +92,7 @@ TOL_Z = 0.004
 
 def abort_if_too_many_steps(step, base_dir =None):
 
-    if step > 320:
+    if step > 300:
         print(f"[auto_pick_and_place] step {step} exceeded limit, aborting")
         try:
             shutil.rmtree(base_dir)
@@ -448,11 +448,13 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         
         if target is not None: 
             dz = target[2] - np.array(obs["robot0_eef_pos"])[2]
+            print("dz", dz)
         else:
             dz = np.array(obs["Bread_to_robot0_eef_pos"])[2]
         
 
         if abs(dz) < TOL_Z:
+            print("Break")
             break
 
         step_z = STEP_Z * np.sign(dz)
@@ -636,11 +638,13 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
 
     def abort_if_too_many_steps():
         nonlocal step, base_dir
-        if step > 320:
+        if step > 300:
+
             print(f"[auto_pick_and_place] step {step} exceeded limit, aborting")
             try:
                 shutil.rmtree(base_dir)
                 print(f"[auto_pick_and_place] deleted partial folder {base_dir}")
+                
             except Exception as e:
                 print(f"[auto_pick_and_place] failed to delete {base_dir}: {e}")
             return True

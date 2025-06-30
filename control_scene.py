@@ -144,11 +144,12 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
     # --- Extrinsics ---
     cam_pos = env.sim.model.cam_pos[cam_id].tolist()
     cam_quat = env.sim.model.cam_quat[cam_id]  # [w, x, y, z]
-    rotation_matrix = R.from_quat([cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]).as_matrix().tolist()
+    rotation_matrix = R.from_quat(cam_quat).as_matrix().tolist()
+    cam_quat = [cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]
 
     extrinsics = {
         "position_xyz": cam_pos,
-        "rotation_quaternion_wxyz": cam_quat.tolist(),
+        "rotation_quaternion_wxyz": cam_quat,
         "rotation_matrix": rotation_matrix,
         "camera_to_world_matrix": [
             rotation_matrix[0] + [cam_pos[0]],
@@ -383,17 +384,16 @@ def main(task):
            #  print("action", action)
             obs, reward, done, info = env.step(action)
 
-            # NEW: print gripper z position
-            gripper_pos = robot._hand_pos
 
-            eef_pos = gripper_pos["right"]
-            eef_quat = robot._hand_quat["right"] # [x, y, z, w]
+            eef_pos   = obs["robot0_eef_pos"]
+            eef_quat = obs["robot0_eef_quat"]
+            eef_quat = eef_quat[[3, 0, 1, 2]]
 
-            joint_state = robot.sim.data.qpos[robot._ref_joint_pos_indexes] # [7]
+            joint_state =  obs["robot0_joint_pos"]
             gripper_indices = list(robot._ref_gripper_joint_pos_indexes.values())
             gripper_qpos = robot.sim.data.qpos[gripper_indices]
 
-            gripper_pos_m = np.array([np.mean(gripper_qpos)])
+            gripper_pos_m = obs["robot0_gripper_qpos"][0]
 
             small_obs = {k: v for k,v in obs.items()
                             if not k.endswith("_image") and not k.endswith("_depth") and not k.endswith("_segmentation_class")}
