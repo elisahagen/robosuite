@@ -22,6 +22,62 @@ class BinToBinTransfer(PickPlace):
         # self.objects = [BoxObject(name="Box", size=[0.02, 0.02, 0.02])] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
         self.objects = [BreadObject(name="Bread")] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
         # self.objects2 = [cube1, cube2]
+    
+    def _reset_internal(self):
+        super()._reset_internal()  # resets objects, robot, etc.
+
+        # Custom: randomize bin2 cubes here
+        self.randomize_bin2_cubes()
+
+    def randomize_bin2_cubes(self):
+        # Bounds of bin2 in world space
+        fixed_positions = [
+            [ 0.15, 0.2, 0.9],  # position 1
+            [ 0.05, 0.2, 0.9],  # position 2
+            [ 0.15, 0.1, 0.9],  # position 3
+            [ 0.05, 0.1, 0.9],  # position 4
+        ]
+
+        cube_names = ["cube1", "cube2", "cube3"]
+        cube_colors = {
+            "cube1": [1, 0, 0, 1],  # red
+            "cube2": [0, 1, 0, 1],  # green
+            "cube3": [0, 0, 1, 1],  # blue
+            "cube4": [1, 1, 0, 1],  # yellow (or repeat any)
+        }
+
+        # Randomly assign them to positions
+        assigned_positions = np.random.permutation(fixed_positions)[:3]
+
+        self.cube_positions = {}
+        self.used_positions = []
+
+        for cube_name, pos in zip(cube_names, assigned_positions):
+            body_id = self.sim.model.body_name2id(cube_name)
+            self.sim.model.body_pos[body_id] = pos
+
+            # Also set color (optional)
+            geom_id = self.sim.model.geom_name2id(f"{cube_name}_geom")
+            self.sim.model.geom_rgba[geom_id] = cube_colors[cube_name]
+
+            self.cube_positions[cube_name] = pos
+            self.used_positions.append(pos)
+
+        # Optionally hide the 4th cube (move below ground)
+        unplaced = list(set(cube_names) - set(cube_names))
+        for cube_name in unplaced:
+            body_id = self.sim.model.body_name2id(cube_name)
+            self.sim.model.body_pos[body_id] = [0, 0, -1]  # hide below table
+            self.cube_positions[cube_name] = [0, 0, -1]
+
+
+        self.sim.forward()
+        self.target_position = None
+        for pos in fixed_positions:
+            if not any(np.allclose(pos, used, atol=1e-4) for used in self.used_positions):
+                self.target_position = pos
+                break
+
     def _construct_visual_objects(self):
         self.visual_objects = []  # no visual goal objects
 

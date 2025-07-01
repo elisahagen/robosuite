@@ -252,6 +252,10 @@ def main(task):
         )
 
     obs = env.reset()
+    print("Random cube positions:")
+    for cube, pos in env.cube_positions.items():
+        print(f"{cube}: {pos}")
+    print(env.target_position)
 
     first_cam_seg = f"{camera_names[0]}_segmentation_class"
     seg = obs.get(first_cam_seg)
