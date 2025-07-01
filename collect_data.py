@@ -23,58 +23,58 @@ from robosuite.models.objects import BreadObject
 import xml.etree.ElementTree as ET
 
 INSTRUCTION_TEMPLATES = {
-    "milk": [
-        "Please grab the milk and place it on the table.",
-        "Pick up the milk carton and move it to the tray.",
-        "Lift the milk and drop it in the basket.",
-        "Take the milk and place it near the sink."
+"milk": [
+        "Pick up the milk and place it into the empty space in the bin.",
+        "Grab the milk carton and move it to the unoccupied spot in the bin.",
+        "Lift the milk and carefully place it in the free location among the cubes.",
+        "Take the milk and put it into the vacant slot inside the bin."
     ],
     "bread": [
-        "Pick up the bread and put it in the basket.",
-        "Grab the loaf of bread and move it to the counter.",
-        "Lift the bread and drop it on the tray.",
-        "Please relocate the bread to the plate."
+        "Pick up the bread and place it in the available empty space in the bin.",
+        "Grab the loaf of bread and move it into the unfilled position.",
+        "Lift the bread and drop it in the remaining free space next to the cubes.",
+        "Relocate the bread to the empty slot inside the target bin area."
     ],
     "can": [
-        "Take the can and place it on the shelf.",
-        "Pick up the can and move it to the bin.",
-        "Grab the can and drop it near the box.",
-        "Relocate the can to the storage area."
+        "Take the can and place it into the only remaining empty space in the bin.",
+        "Pick up the can and move it into the free spot among the cubes.",
+        "Grab the can and place it into the vacant location left in the bin.",
+        "Relocate the can into the unoccupied space on the table."
     ],
     "juice": [
-        "Lift the juice bottle and set it on the table.",
-        "Grab the juice container and drop it in the tray.",
-        "Take the juice and place it on the counter."
+        "Lift the juice bottle and set it into the empty space in the bin.",
+        "Grab the juice container and drop it into the last available slot.",
+        "Take the juice and place it in the unoccupied area next to the cubes."
     ],
     "cereals": [
-        "Lift the cereal box and set it on the table.",
-        "Grab the cereal box and drop it in the tray.",
-        "Take the cereal box and place it on the counter."
+        "Lift the cereal box and place it into the remaining empty spot in the bin.",
+        "Grab the cereal box and drop it into the open space near the cubes.",
+        "Take the cereal box and set it in the only free position inside the bin."
     ],
     "bottle": [
-        "Lift the bottle and set it on the table.",
-        "Grab the bottle and drop it in the tray.",
-        "Take the bottle and place it on the counter."
+        "Lift the bottle and place it into the bin's remaining empty space.",
+        "Grab the bottle and drop it into the free slot between the cubes.",
+        "Take the bottle and put it into the unoccupied spot in the bin."
     ],
     "cube": [
-        "Lift the cube and set it on the table.",
-        "Grab the cube and drop it in the tray.",
-        "Take the cube and place it on the counter."
+        "Lift the cube and set it into the last empty space in the bin.",
+        "Grab the cube and place it into the unfilled slot among the other cubes.",
+        "Take the cube and drop it into the open area left in the bin."
     ],
     "box": [
-        "Lift the box and set it on the table.",
-        "Grab the box and drop it in the tray.",
-        "Take the box and place it on the counter."
+        "Lift the box and place it into the free space in the bin.",
+        "Grab the box and carefully set it in the only available spot.",
+        "Take the box and position it in the bin where there is no other cube."
     ],
     "capsule": [
-        "Lift the capsule and set it on the table.",
-        "Grab the capsule and drop it in the tray.",
-        "Take the capsule and place it on the counter."
+        "Lift the capsule and place it into the empty position inside the bin.",
+        "Grab the capsule and drop it into the free area left between the cubes.",
+        "Take the capsule and put it into the remaining unoccupied space."
     ],
     "cylinder": [
-        "Lift the cylinder and set it on the table.",
-        "Grab the cylinder and drop it in the tray.",
-        "Take the cylinder and place it on the counter."
+        "Lift the cylinder and set it into the last free space in the bin.",
+        "Grab the cylinder and move it into the available slot near the other cubes.",
+        "Take the cylinder and place it into the bin's empty location."
     ]
 }
 
@@ -574,12 +574,12 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         dx, dy = gx - target_xy[0], gy - target_xy[1]
         # check tolerance
         # if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
-        if abs(dy) < TOL_XY: 
+        if abs(dy) < TOL_XY and abs(dx) < TOL_XY: 
             break
         step_x = -STEP_XY * np.sign(dx)
         step_y = -STEP_XY * np.sign(dy)
         action = {
-            "right":         np.array([0.0, step_y, 0.0, 0.0, 0.0, 0.0]),
+            "right":         np.array([step_x, step_y, 0.0, 0.0, 0.0, 0.0]),
             "right_gripper": np.array([+1.0])
         }
         a = robot.create_action_vector(action)
@@ -630,6 +630,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     """
    
     obs = env.reset()
+    print(env.target_position)
     step = 0
     target = None
     data_records = []
@@ -651,7 +652,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
         return False
 
     ee_pos, _     = get_ee_pose(obs)
-    target_xy     = [0.05, 0.14, 0.6]
+    target_xy     = env.target_position
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
     if abort_if_too_many_steps(): return
