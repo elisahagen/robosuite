@@ -13,8 +13,10 @@ cube1_pos = [0.1 - 0.05, 0.28, 0.82]
 cube2_pos = [0.1 + 0.05, 0.28, 0.82]
 
 class BinToBinTransfer(PickPlace):
-    def __init__(self, **kwargs):
+    def __init__(self, target_obj, **kwargs):
         super().__init__(single_object_mode=0,**kwargs)
+
+        self.target_obj = target_obj
 
     def _construct_objects(self):
         from robosuite.models.objects import BreadObject

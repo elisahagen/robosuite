@@ -21,62 +21,27 @@ import shutil
 import trimesh
 from robosuite.models.objects import BreadObject
 import xml.etree.ElementTree as ET
+from instruction_templates import (
+    InstructionTemplatesLevel1,
+    InstructionTemplatesLevel2,
+    InstructionTemplatesLevel3,
+)
 
-INSTRUCTION_TEMPLATES = {
-"milk": [
-        "Pick up the milk and place it into the empty space in the bin.",
-        "Grab the milk carton and move it to the unoccupied spot in the bin.",
-        "Lift the milk and carefully place it in the free location among the cubes.",
-        "Take the milk and put it into the vacant slot inside the bin."
-    ],
-    "bread": [
-        "Pick up the bread and place it in the available empty space in the bin.",
-        "Grab the loaf of bread and move it into the unfilled position.",
-        "Lift the bread and drop it in the remaining free space next to the cubes.",
-        "Relocate the bread to the empty slot inside the target bin area."
-    ],
-    "can": [
-        "Take the can and place it into the only remaining empty space in the bin.",
-        "Pick up the can and move it into the free spot among the cubes.",
-        "Grab the can and place it into the vacant location left in the bin.",
-        "Relocate the can into the unoccupied space on the table."
-    ],
-    "juice": [
-        "Lift the juice bottle and set it into the empty space in the bin.",
-        "Grab the juice container and drop it into the last available slot.",
-        "Take the juice and place it in the unoccupied area next to the cubes."
-    ],
-    "cereals": [
-        "Lift the cereal box and place it into the remaining empty spot in the bin.",
-        "Grab the cereal box and drop it into the open space near the cubes.",
-        "Take the cereal box and set it in the only free position inside the bin."
-    ],
-    "bottle": [
-        "Lift the bottle and place it into the bin's remaining empty space.",
-        "Grab the bottle and drop it into the free slot between the cubes.",
-        "Take the bottle and put it into the unoccupied spot in the bin."
-    ],
-    "cube": [
-        "Lift the cube and set it into the last empty space in the bin.",
-        "Grab the cube and place it into the unfilled slot among the other cubes.",
-        "Take the cube and drop it into the open area left in the bin."
-    ],
-    "box": [
-        "Lift the box and place it into the free space in the bin.",
-        "Grab the box and carefully set it in the only available spot.",
-        "Take the box and position it in the bin where there is no other cube."
-    ],
-    "capsule": [
-        "Lift the capsule and place it into the empty position inside the bin.",
-        "Grab the capsule and drop it into the free area left between the cubes.",
-        "Take the capsule and put it into the remaining unoccupied space."
-    ],
-    "cylinder": [
-        "Lift the cylinder and set it into the last free space in the bin.",
-        "Grab the cylinder and move it into the available slot near the other cubes.",
-        "Take the cylinder and place it into the bin's empty location."
-    ]
-}
+def get_instruction(base_dir, target_object, level=1, target_position=None):
+    key = target_object.lower()
+    
+    if level == 1:
+        templates = InstructionTemplatesLevel1.get(key, [])
+    elif level == 2:
+        templates = InstructionTemplatesLevel2.get(key, [])
+        if target_position is not None:
+            templates = [t.format(tuple(round(x, 3) for x in target_position)) for t in templates]
+    elif level == 3:
+        templates = InstructionTemplatesLevel3.get(key, [])
+    else:
+        templates = []
+
+    return random.choice(templates) if templates else "Perform the task as demonstrated."
 
 STEP_SIZE = 0.3
 UP_DOWN   = 0.25
@@ -270,11 +235,7 @@ def writer_loop(q):
         cv2.imwrite(path, arr)
     q.task_done()
 
-def get_instruction(path, target_object):
-    for obj, templates in INSTRUCTION_TEMPLATES.items():
-        if obj in target_object.lower():
-            return random.choice(templates)
-    return "Perform the task as demonstrated."
+
 
 def get_ee_pose(obs):
     """Return end-effector position & quaternion (x,y,z,w)."""
@@ -328,7 +289,15 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         "done":        bool(done),
     }
 
-    known_objects = [obj.lower() for obj in INSTRUCTION_TEMPLATES.keys()]
+    
+    known_objects = set()
+
+    # Add all object keys from each template level
+    for tmpl in (InstructionTemplatesLevel1, InstructionTemplatesLevel2, InstructionTemplatesLevel3):
+        known_objects.update(obj.lower() for obj in tmpl.keys())
+
+    known_objects = list(known_objects)
+
     gripper_state = action_vec.tolist()[-1]
     for key, value in rec["observation"].items():
         if not key.endswith("_pos"):
@@ -620,7 +589,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
 
     return step, data_records 
 
-def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
+def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj):
     """
     1) Move above object
     2) Descend & grasp
@@ -692,9 +661,9 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
     step, data_records = move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records)
 
     nclass = 6
-    target_object = "Bread"
+    target_object = target_obj
     save_json(os.path.join(base_dir, "teleop_demo.json"), data_records, nclass)
-    instr = get_instruction(base_dir, target_object)
+    instr = get_instruction(base_dir, target_object, level=level, target_position=target_xy)
     save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
 
     print("Completed automatic pick-and-place")
@@ -702,7 +671,15 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names):
 
 if __name__ == "__main__":
 
-    base_dir = f"/home/elisa/Documents/data/robosuite_automated/teleop_dataset_auto_{datetime.now():%Y%m%d_%H%M%S}"
+    parser = argparse.ArgumentParser(description="Automated pick-and-place teleop data collection")
+    parser.add_argument("--level", type=int, default=1, choices=[1, 2, 3],
+                        help="Instruction level: 1 (general), 2 (coords), 3 (natural language)")
+    parser.add_argument("--object", type=str , default="bread", choices=["bread", "box", "milk", "cereals"],
+                        help="Instruction level: 1 (general), 2 (coords), 3 (natural language)")
+    args = parser.parse_args()
+    target_obj = args.object.lower()
+    level = args.level
+    base_dir = f"/home/elisa/Documents/data/robosuite_automated/teleop_dataset_{level}_{datetime.now():%Y%m%d_%H%M%S}"
     cam_names = ["left_side_view", "right_side_view",
                  "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"]
 
@@ -717,6 +694,7 @@ if __name__ == "__main__":
 
     # 3) build env 
     env = BinToBinTransfer(
+        target_obj=target_obj,
         robots="Panda",
         controller_configs=ctrl_cfg,
         has_renderer=False,
@@ -743,7 +721,7 @@ if __name__ == "__main__":
     bread_canonical.export(canonical_out, file_type="ply", encoding="ascii")
     print(f"[+] wrote canonical bread mesh → {canonical_out}")
 
-    auto_pick_and_place(env, robot, write_q, base_dir, cam_names)
+    auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj)
 
 
     env.close()
