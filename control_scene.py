@@ -193,6 +193,7 @@ def main(task):
             os.makedirs(os.path.join(base_dir,cam+"_depth"), exist_ok=True)
     
         env = BinToBinTransfer(
+            target_obj = "bread",
             robots="Panda",
             controller_configs=controller_config,
             has_renderer=False,           

@@ -125,4 +125,4 @@ def get_cropped_pointcloud_from_depth_only(depth_path=None, intrinsics_json=None
 
 
 if __name__ == "__main__":
-    generate_point_clouds_bacth(depth_path="/home/elisa/Documents/masterthesis/git/teleop_dataset_eef/teleop_dataset_blue_bin_multi_object_picking_bread_20250625_135410/left_side_view_depth/00001.png", intrinsics_json="/home/elisa/Documents/masterthesis/git/teleop_dataset_eef/teleop_dataset_blue_bin_multi_object_picking_bread_20250625_135410/left_side_view_camera_info.json") # , bbox_params={"x_min": 0, "x_max": 100, "y_min": 0, "y_max": 100, "msg": ""}, visualize=True)
+    generate_point_clouds_bacth(depth_path="/home/elisa/Documents/data/robosuite_automated/teleop_dataset_auto_20250702_093831/left_side_view_depth/00003.png", intrinsics_json="/home/elisa/Documents/data/robosuite_automated/teleop_dataset_auto_20250702_093831/left_side_view_camera_info.json") # , bbox_params={"x_min": 0, "x_max": 100, "y_min": 0, "y_max": 100, "msg": ""}, visualize=True)

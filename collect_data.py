@@ -599,7 +599,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
     """
    
     obs = env.reset()
-    print(env.target_position)
+    #print(env.target_position)
     step = 0
     target = None
     data_records = []
@@ -621,7 +621,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
         return False
 
     ee_pos, _     = get_ee_pose(obs)
-    target_xy     = env.target_position
+    target_xy     = env.target_position #[0.05, 0.14, 0.6] #
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
     if abort_if_too_many_steps(): return
