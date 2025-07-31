@@ -33,7 +33,7 @@ from collections import deque
 STEP_SIZE = 0.3
 STEP_XY = 0.3
 STEP_Z = 0.25
-TOL_XY = 0.005
+TOL_XY = 0.01
 TOL_X = 0.005
 TOL_Y = 0.005
 TOL_Z = 0.004
@@ -68,45 +68,73 @@ def abort_if_too_many_steps(step, base_dir =None):
     return False
 
 
-def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records):
+def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1):
     """
     Phase 1: Hold Z constant; move in X–Y only until within TOL_XY.
     """
     obs, rew, done, _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([-1.0])}))
     oscillate_cnt = total_steps = 0
     last_sign = None
+
+
+    current_xy = np.array(obs["robot0_eef_pos"])[:2]
+    delta_xy   = np.array(obs["Bread_pos"])[:2] - current_xy
+
+    # 2) distance you want per step
+    vel_cmd = delta_xy
+    local_steps = 0
     while True:
+        if stage == 2 and local_steps > 13:
+            break
         
+        print(local_steps)
         rel_pos = np.array(obs["Bread_to_robot0_eef_pos"])  # [x,y,z] from bread→eef
-        dx, dy, _ = rel_pos
-
-        if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
+        if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_XY:
             break
 
-        if last_sign is not None and sign != last_sign:
-            oscillate_cnt += 1
-        else:
-            oscillate_cnt = 0
-            total_steps  += 1
-        
-        if oscillate_cnt >= 6:
-            break
-        
-        step_x = STEP_XY * np.sign(dx)
-        step_y = STEP_XY * np.sign(dy)
-        sign   = np.sign(step_x or step_y) 
-
-        raw_action = {
-            "right":         np.array([ step_x, -step_y, 0,  0,0,0 ]),
-            "right_gripper": np.array([-1.0]),
+        print(vel_cmd)
+        action = {
+            "right":         np.array([vel_cmd[0], vel_cmd[1], 0, 0, 0, 0]),
+            "right_gripper": np.array([-1.0])
         }
-        a_raw = robot.create_action_vector(raw_action)
-
-        obs, rew, done,_ = env.step(a_raw)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a_raw, rew, done, robot, data_records)
-
+        a = robot.create_action_vector(action)
+        obs, rew, done, _ = env.step(a)
+        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
-        abort_if_too_many_steps(step)
+        local_steps += 1
+
+    # while True:
+        
+    #     rel_pos = np.array(obs["Bread_to_robot0_eef_pos"])  # [x,y,z] from bread→eef
+    #     dx, dy, _ = rel_pos
+
+    #     if abs(dx) < TOL_XY and abs(dy) < TOL_XY:
+    #         break
+
+    #     if last_sign is not None and sign != last_sign:
+    #         oscillate_cnt += 1
+    #     else:
+    #         oscillate_cnt = 0
+    #         total_steps  += 1
+        
+    #     if oscillate_cnt >= 6:
+    #         break
+        
+    #     step_x = STEP_XY * np.sign(dx)
+    #     step_y = STEP_XY * np.sign(dy)
+    #     sign   = np.sign(step_x or step_y) 
+
+    #     raw_action = {
+    #         "right":         np.array([ step_x, -step_y, 0,  0,0,0 ]),
+    #         "right_gripper": np.array([-1.0]),
+    #     }
+    #     a_raw = robot.create_action_vector(raw_action)
+
+    #     obs, rew, done,_ = env.step(a_raw)
+    #     data_records = save_img_info(obs, base_dir, cam_names, step, a_raw, rew, done, robot, data_records)
+
+    #     step += 1
+    #     abort_if_too_many_steps(step)
 
 
     return step, data_records
@@ -327,7 +355,10 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
         return False
 
     ee_pos, _     = get_ee_pose(obs)
-    target_xy     = env.target_position #[0.05, 0.14, 0.6] #
+    try: 
+        target_xy     = env.target_position #[0.05, 0.14, 0.6] #
+    except:
+        target_xy = [0.05, 0.14, 0.6]
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
     if abort_if_too_many_steps(): return
@@ -337,7 +368,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
     if abort_if_too_many_steps(): return
 
     # 2b) align position again
-    step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
+    step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=2)
     if abort_if_too_many_steps(): return
 
     # 3) descend to object
@@ -414,6 +445,7 @@ if __name__ == "__main__":
         control_freq=10,
         ignore_done=True,
         hard_reset=True,
+        randomize_cubes=False,
         initialization_noise=None
     )
     for cam in cam_names:

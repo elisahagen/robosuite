@@ -13,11 +13,11 @@ cube1_pos = [0.1 - 0.05, 0.28, 0.82]
 cube2_pos = [0.1 + 0.05, 0.28, 0.82]
 
 class BinToBinTransfer(PickPlace):
-    def __init__(self, target_obj, **kwargs):
+    def __init__(self, target_obj, randomize_cubes=False, **kwargs):
+        self.randomize_cubes = randomize_cubes
         super().__init__(single_object_mode=0,**kwargs)
 
         self.target_obj = target_obj
-
     def _construct_objects(self):
         from robosuite.models.objects import BreadObject
         from robosuite.models.objects import BoxObject
@@ -29,7 +29,8 @@ class BinToBinTransfer(PickPlace):
         super()._reset_internal()  # resets objects, robot, etc.
 
         # Custom: randomize bin2 cubes here
-        self.randomize_bin2_cubes()
+        if self.randomize_cubes:
+            self.randomize_bin2_cubes()
 
     def randomize_bin2_cubes(self):
         # Bounds of bin2 in world space
