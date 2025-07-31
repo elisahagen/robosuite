@@ -1,4 +1,21 @@
 # instruction_templates.py
+import random
+
+def get_instruction(base_dir, target_object, level=1, target_position=None):
+    key = target_object.lower()
+    
+    if level == 1:
+        templates = InstructionTemplatesLevel1.get(key, [])
+    elif level == 2:
+        templates = InstructionTemplatesLevel2.get(key, [])
+        if target_position is not None:
+            templates = [t.format(tuple(round(x, 3) for x in target_position)) for t in templates]
+    elif level == 3:
+        templates = InstructionTemplatesLevel3.get(key, [])
+    else:
+        templates = []
+
+    return random.choice(templates) if templates else "Perform the task as demonstrated."
 
 # Level 1: General task description (from A to B)
 InstructionTemplatesLevel1 = {
