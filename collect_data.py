@@ -78,7 +78,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
 
 
     current_xy = np.array(obs["robot0_eef_pos"])[:2]
-    delta_xy   = np.array(obs["Bread_pos"])[:2] - current_xy
+    delta_xy   = np.array(obs["Box_pos"])[:2] - current_xy
 
     # 2) distance you want per step
     vel_cmd = delta_xy
@@ -87,12 +87,10 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
         if stage == 2 and local_steps > 13:
             break
         
-        print(local_steps)
-        rel_pos = np.array(obs["Bread_to_robot0_eef_pos"])  # [x,y,z] from bread→eef
+        rel_pos = np.array(obs["Box_to_robot0_eef_pos"])  # [x,y,z] from bread→eef
         if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_XY:
             break
 
-        print(vel_cmd)
         action = {
             "right":         np.array([vel_cmd[0], vel_cmd[1], 0, 0, 0, 0]),
             "right_gripper": np.array([-1.0])
@@ -155,7 +153,7 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
             dz = target[2] - np.array(obs["robot0_eef_pos"])[2]
             print("dz", dz)
         else:
-            dz = np.array(obs["Bread_to_robot0_eef_pos"])[2]
+            dz = np.array(obs["Box_to_robot0_eef_pos"])[2]
         
 
         if abs(dz) < TOL_Z:
@@ -225,7 +223,7 @@ def rotate_to(env, robot, base_dir, cam_names, step, data_records):
 
     while True:
 
-        q_cur = obs["Bread_to_robot0_eef_quat"]
+        q_cur = obs["Box_to_robot0_eef_quat"]
         STEPSIZE_DEG = 2.0
 
         axis, angle = quat_to_axis_angle(q_cur)
@@ -358,7 +356,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
     try: 
         target_xy     = env.target_position #[0.05, 0.14, 0.6] #
     except:
-        target_xy = [0.05, 0.14, 0.6]
+        target_xy = [0.06, 0.16, 0.6]
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
     if abort_if_too_many_steps(): return
@@ -453,11 +451,14 @@ if __name__ == "__main__":
 
     robot = env.robots[0]
     
-    xml_path = "/home/elisa/Documents/masterthesis/git/robosuite/robosuite/models/assets/objects/bread_asset.xml"
-    bread_canonical = load_canonical_mesh_from_asset(xml_path)
-    canonical_out = os.path.join(base_dir, "bread_canonical.ply")
-    bread_canonical.export(canonical_out, file_type="ply", encoding="ascii")
-    print(f"[+] wrote canonical bread mesh → {canonical_out}")
+    
+    # xml_path = os.path.join("/home/elisa/Documents/masterthesis/git/robosuite/robosuite/models/assets/objects/", target_obj + ".xml")
+
+    # bread_canonical = load_canonical_mesh_from_asset(xml_path)
+
+    # canonical_out = os.path.join(base_dir, "bread_canonical.ply")
+    # bread_canonical.export(canonical_out, file_type="ply", encoding="ascii")
+    # print(f"[+] wrote canonical bread mesh → {canonical_out}")
 
     auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj)
 

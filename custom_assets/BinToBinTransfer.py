@@ -15,14 +15,25 @@ cube2_pos = [0.1 + 0.05, 0.28, 0.82]
 class BinToBinTransfer(PickPlace):
     def __init__(self, target_obj, randomize_cubes=False, **kwargs):
         self.randomize_cubes = randomize_cubes
+        self.target_obj = target_obj
         super().__init__(single_object_mode=0,**kwargs)
 
-        self.target_obj = target_obj
     def _construct_objects(self):
         from robosuite.models.objects import BreadObject
         from robosuite.models.objects import BoxObject
+
+        if self.target_obj == "cereal":
+            self.objects = [CerealObject(name="Cereal")]
+        elif self.target_obj == "milk":
+            self.objects = [MilkObject(name="Milk")]
+        elif self.target_obj == "bottle":
+            self.objects = [BottleObject(name="Bottle")]        
+        elif self.target_obj == "box":
+            self.objects = [BoxObject(name="Box", size=[0.02, 0.02, 0.02])]
+        elif self.target_obj == "bread":
+            self.objects = [BreadObject(name="Bread")]
         # self.objects = [BoxObject(name="Box", size=[0.02, 0.02, 0.02])] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
-        self.objects = [BreadObject(name="Bread")] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
+        # self.objects = [BreadObject(name="Bread")] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]
         # self.objects2 = [cube1, cube2]
     
     def _reset_internal(self):
