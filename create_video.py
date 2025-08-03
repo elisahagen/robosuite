@@ -2,8 +2,8 @@ import cv2
 import os
 from natsort import natsorted
 
-image_folder = "/home/elisa/Documents/data/robosuite_automated/teleop_dataset_auto_20250702_093831/left_side_view"   # e.g. .../left_side_view
-output_video_path = "left_side_view.avi"
+image_folder = "/home/elisa/Documents/data/robosuite_automated/teleop_dataset_1_20250801_174302/left_side_view"   # e.g. .../left_side_view
+output_video_path = "left_side_view_smooth.avi"
 frame_rate = 10                               
 
 images = [img for img in os.listdir(image_folder) if img.endswith(".png")]

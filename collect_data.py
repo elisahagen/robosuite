@@ -274,7 +274,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
     delta_xy   = np.array(target_xy)[:2] - current_xy
 
     # 1) decide how many equal‐length steps of size STEP_XY you need
-    num_steps = int(np.ceil((np.linalg.norm(delta_xy) * 100))) + 5
+    num_steps = int(np.ceil((np.linalg.norm(delta_xy) * 100))) + 8
 
     # 2) distance you want per step
     vel_cmd = delta_xy
@@ -420,7 +420,10 @@ if __name__ == "__main__":
 
     setup_dirs(base_dir, cam_names)
 
-
+    if level >= 1:
+        randomize_cubes = True
+    else:
+        randomize_cubes = False
 
     write_q = queue.Queue()
     threading.Thread(target=writer_loop, args=(write_q,), daemon=True).start()
@@ -443,7 +446,7 @@ if __name__ == "__main__":
         control_freq=10,
         ignore_done=True,
         hard_reset=True,
-        randomize_cubes=False,
+        randomize_cubes=randomize_cubes,
         initialization_noise=None
     )
     for cam in cam_names:
