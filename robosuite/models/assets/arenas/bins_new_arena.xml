@@ -54,13 +54,13 @@
     </body>
     
 
-    <body name="bin2" pos="0.1 -0.3 0.07">
-    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.02" pos="0 -0.15 0.07" material="blue-plastic" group="1"/>
+    <body name="bin2" pos="0.1 -0.3 0.02">
+    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.02" pos="0 -0.15 0.02" material="blue-plastic" group="1"/>
 
-    <geom name="bin2_wall_back" type="box" size="0.13 0.005 0.05" pos="0 -0.025 0.07" material="blue-plastic" group="1"/>
-    <geom name="bin2_wall_front" type="box" size="0.13 0.005 0.05" pos="0 -0.275 0.07" material="blue-plastic" group="1"/>
-    <geom name="bin2_wall_left" type="box" size="0.005 0.13 0.05" pos="-0.13 -0.15 0.07" material="blue-plastic" group="1"/>
-    <geom name="bin2_wall_right" type="box" size="0.005 0.13 0.05" pos="0.13 -0.15 0.07" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_back" type="box" size="0.13 0.005 0.05" pos="0 -0.025 0.02" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_front" type="box" size="0.13 0.005 0.05" pos="0 -0.275 0.02" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_left" type="box" size="0.005 0.13 0.05" pos="-0.13 -0.15 0.02" material="blue-plastic" group="1"/>
+    <geom name="bin2_wall_right" type="box" size="0.005 0.13 0.05" pos="0.13 -0.15 0.02" material="blue-plastic" group="1"/>
     </body>
     <!-- <geom name="cube_left" type="box" size="0.04 0.04 0.04" pos="-0.1 0.12 0.04" material="light-gray-plaster" group="1" />
     <geom name="cube_right" type="box" size="0.04 0.04 0.04" pos="0.1 0.12 0.04" material="light-gray-plaster" group="1" />
