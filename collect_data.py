@@ -288,6 +288,22 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         obs, rew, done, _ = env.step(a)
         data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
+    
+    if abs(delta_xy[1]) > TOL_XY or abs(delta_xy[0]) > TOL_XY: 
+        gx, gy = obs["robot0_eef_pos"][:2]
+        dx, dy = gx - target_xy[0], gy - target_xy[1]
+        step_x = -STEP_XY * np.sign(dx)
+        step_y = -STEP_XY * np.sign(dy)
+        action = {
+            "right":         np.array([step_x, step_y, 0.0, 0.0, 0.0, 0.0]),
+            "right_gripper": np.array([+1.0])
+        }
+        a = robot.create_action_vector(action)
+        obs, rew, done,_ = env.step(a)
+        
+        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        step += 1
+
 
     for _ in range(25):
         action = {

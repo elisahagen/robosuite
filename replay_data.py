@@ -6,7 +6,7 @@ from custom_assets.BinToBinTransfer import BinToBinTransfer
 from datetime import datetime
 import time
 
-base_dir = "/home/elisa/Documents/data/robosuite_automated/teleop_dataset_1_20250801_151217/"  
+base_dir = "/home/elisa/Documents/data/robosuite_automated/smooth1/1/teleop_dataset_1_20250731_200144/"  
 demo_file = os.path.join(base_dir, "teleop_demo")
 with open(demo_file, "r") as f:
     demo_data = json.load(f)["data"]
@@ -23,7 +23,7 @@ bread_quat = bread_quat[[3, 0, 1, 2]]
 
 env = BinToBinTransfer(
     robots="Panda",
-    target_obj="Bread",
+    target_obj="bread",
     controller_configs=ctrl_cfg,
     has_renderer=True,
     has_offscreen_renderer=False,
