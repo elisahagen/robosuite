@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set +e
 
-for i in $(seq 1 50); do
+for i in $(seq 1 5); do
   echo "=== Starting episode $i ($(date +'%Y-%m-%d %H:%M:%S')) ==="
-  python collect_data.py --object box
+  python collect_data.py --object box --level 2
   status=$?
 
     if [ $status -ne 0 ]; then

@@ -354,7 +354,12 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
 
     ee_pos, _     = get_ee_pose(obs)
     try: 
-        target_xy     = env.target_position #[0.05, 0.14, 0.6] #
+        target_xy = env.target_position #[0.05, 0.14, 0.6] #
+        if target_xy[1] < 0.2:
+            target_xy[1] = target_xy[1] + 0.02
+        elif target_xy[1] >= 0.2:
+            target_xy[1] = target_xy[1] - 0.02
+        print(f"Target position: {target_xy}")
     except:
         target_xy = [0.06, 0.16, 0.6]
     # 1) move above object
@@ -409,7 +414,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automated pick-and-place teleop data collection")
     parser.add_argument("--level", type=int, default=1, choices=[1, 2, 3],
                         help="Instruction level: 1 (general), 2 (coords), 3 (natural language)")
-    parser.add_argument("--object", type=str , default="bread", choices=["bread", "box", "milk", "cereals"],
+    parser.add_argument("--object", type=str , default="box", choices=["bread", "box", "milk", "cereals"],
                         help="Instruction level: 1 (general), 2 (coords), 3 (natural language)")
     args = parser.parse_args()
     target_obj = args.object.lower()
