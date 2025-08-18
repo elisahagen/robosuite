@@ -25,6 +25,8 @@ def generate_point_clouds_bacth(depth_path, intrinsics_json, depth_scale=1000.0)
     """
     visualize = True 
     depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+    print(depth.min(), depth.max())
+    print(depth)
     if depth is None:
         logger.error(f"Could not load depth image from {depth_path}")
         raise FileNotFoundError(f"Could not load depth image from {depth_path}")
@@ -43,9 +45,9 @@ def generate_point_clouds_bacth(depth_path, intrinsics_json, depth_scale=1000.0)
 
     # if depth_batch.ndim == 4:
     #     depth_batch = depth_batch[:, 0]
-    depth_batch = convert_depth_buffer_to_meters(depth)
-    print(depth, depth.shape)
-    H, W = depth_batch.shape
+    # depth_batch = convert_depth_buffer_to_meters(depth)
+    # print(depth, depth.shape)
+    H, W = depth.shape
     # K = np.asarray(K)
     # if K.shape == (9,):
     #     K = K.reshape(3, 3)
@@ -89,6 +91,7 @@ def get_cropped_pointcloud_from_depth_only(depth_path=None, intrinsics_json=None
             raise ValueError("Missing required parameters for point cloud generation")
         # Load depth and intrinsics
         depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+        print(depth)
         if depth is None:
             logger.error(f"Could not load depth image from {depth_path}")
             raise FileNotFoundError(f"Could not load depth image from {depth_path}")
@@ -125,4 +128,4 @@ def get_cropped_pointcloud_from_depth_only(depth_path=None, intrinsics_json=None
 
 
 if __name__ == "__main__":
-    generate_point_clouds_bacth(depth_path="/home/elisa/Documents/masterthesis/git/teleop_dataset_eef/teleop_dataset_blue_bin_multi_object_picking_bread_20250625_135410/left_side_view_depth/00001.png", intrinsics_json="/home/elisa/Documents/masterthesis/git/teleop_dataset_eef/teleop_dataset_blue_bin_multi_object_picking_bread_20250625_135410/left_side_view_camera_info.json") # , bbox_params={"x_min": 0, "x_max": 100, "y_min": 0, "y_max": 100, "msg": ""}, visualize=True)
+    generate_point_clouds_bacth(depth_path="/home/elisa/Documents/data/robosuite_automated/smooth1/3/teleop_dataset_1_20250801_103331/left_side_view_depth/00003.png", intrinsics_json="/home/elisa/Documents/data/robosuite_automated/smooth1/3/teleop_dataset_1_20250801_103331/left_side_view_camera_info.json") # , bbox_params={"x_min": 0, "x_max": 100, "y_min": 0, "y_max": 100, "msg": ""}, visualize=True)

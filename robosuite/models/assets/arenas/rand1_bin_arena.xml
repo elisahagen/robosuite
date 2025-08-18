@@ -39,10 +39,10 @@
 
     
     <!-- Bin body template -->
-    <body name="bin1" pos="0.1 -0.25 0.075">
+    <body name="bin1" pos="0.1 -0.25 0.08">
     <!-- Bin floor -->
 
-    <geom name="bin1_bottom" type="box" size="0.13 0.13 0.007" pos="0 0.05 0.075" material="blue-plastic" group="1"/>
+    <geom name="bin1_bottom" type="box" size="0.13 0.13 0.005" pos="0 0.05 0.08" material="blue-plastic" group="1"/>
 
     <!-- Bin walls -->
     <!--
@@ -54,16 +54,36 @@
     </body>
     
 
-    <body name="bin2" pos="0.1 -0.3 0.075">
-    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.007" pos="0 -0.15 0.075" material="blue-plastic" group="1"/>
+    <body name="bin2" pos="0.1 -0.3 0.08">
+    <geom name="bin2_bottom" type="box" size="0.13 0.13 0.02" pos="0 -0.15 0.08" material="blue-plastic" group="1"/>
 
-    <!--<geom name="bin2_wall_back" type="box" size="0.13 0.005 0.02" pos="0 -0.025 0.02" material="blue-plastic" group="1"/>
+    <!-- <geom name="bin2_wall_back" type="box" size="0.13 0.005 0.02" pos="0 -0.025 0.02" material="blue-plastic" group="1"/>
     <geom name="bin2_wall_front" type="box" size="0.13 0.005 0.02" pos="0 -0.275 0.02" material="blue-plastic" group="1"/>
     <geom name="bin2_wall_left" type="box" size="0.005 0.13 0.02" pos="-0.13 -0.15 0.02" material="blue-plastic" group="1"/>
+    <geom name="cube1" type="box" size="0.025 0.025 0.025" pos="0.045 -0.1 0.05" rgba="1 0 0 1" density="500" group="1"/>
+    <geom name="cube2" type="box" size="0.025 0.025 0.025" pos="-0.055 -0.1 0.05" rgba="0 1 0 1" density="500" group="1"/>
+    <geom name="cube3" type="box" size="0.025 0.025 0.025" pos="0.0 -0.2 0.05" rgba="0 0 1 1" density="500" group="1"/>
+    <geom name="cube4" type="box" size="0.025 0.025 0.025" pos="0.05 -0.2 0.05" rgba="1 1 0 1" density="500" group="1"/>
+    <geom name="cube5" type="box" size="0.025 0.025 0.025" pos="-0.05 -0.2 0.05" rgba="1 0 1 1" density="500" group="1"/>
+    <geom name="cube6" type="box" size="0.025 0.025 0.025" pos="0.0 -0.1 0.075" rgba="0 1 1 1" density="500" group="1"/>
+    <geom name="cube7" type="box" size="0.025 0.025 0.025" pos="0.05 -0.15 0.075" rgba="0.5 0.5 0.5 1" density="500" group="1"/>
+    <geom name="cube8" type="box" size="0.025 0.025 0.025" pos="-0.05 -0.15 0.075" rgba="0.8 0.2 0.2 1" density="500" group="1"/>
     <geom name="bin2_wall_right" type="box" size="0.005 0.13 0.05" pos="0.13 -0.15 0.08" material="blue-plastic" group="1"/>
+    <geom name="cube1" type="box" size="0.05 0.05 0.05" pos="-0.05 -0.2 0.09" rgba="1 0 0 1" density="500" group="1"/>
+    <geom name="cube2" type="box" size="0.05 0.05 0.05" pos=" 0.05 -0.2 0.09" rgba="0 1 0 1" density="500" group="1"/>
+    <geom name="cube3" type="box" size="0.05 0.05 0.05" pos="-0.05 -0.1 0.09" rgba="0 0 1 1" density="500" group="1"/>
     -->
-
     </body>
+    <body name="cube1">
+    <geom name="cube1_geom" type="box" size="0.05 0.05 0.05" rgba="1 0 0 1" density="500" group="1"/>
+    </body>
+    <body name="cube2">
+        <geom name="cube2_geom" type="box" size="0.05 0.05 0.05" rgba="0 1 0 1" density="500" group="1"/>
+    </body>
+    <body name="cube3">
+        <geom name="cube3_geom" type="box" size="0.05 0.05 0.05" rgba="0 0 1 1" density="500" group="1"/>
+    </body>
+
     <!-- <geom name="cube_left" type="box" size="0.04 0.04 0.04" pos="-0.1 0.12 0.04" material="light-gray-plaster" group="1" />
     <geom name="cube_right" type="box" size="0.04 0.04 0.04" pos="0.1 0.12 0.04" material="light-gray-plaster" group="1" />
     <geom name="bread" type="mesh" mesh="bread_mesh" pos="0.0 0.05 0.04"
@@ -71,15 +91,15 @@
     <!--<geom name="conveyor" type="box" size="0.4 1.2 0.02" pos="0.1 -0.4 0.01" rgba="0 0 0 1" group="1"/> -->
 
     <!--create table around bins-->
-    <body name="table" pos="0.1 0.28 0.75">
-    <geom name="table1" type="box" size="0.2 0.25 0.05" pos="0.0 -0.855 0.08" rgba="0 0 0 1" group="1"/>
-    <geom name="table2" type="box" size="0.2 0.035 0.05" pos="0.0 -0.315 0.08" rgba="0 0 0 1" group="1"/>
-    <geom name="table3" type="box" size="0.2 0.25 0.05" pos="0.0 0.2 0.08" rgba="0 0 0 1" group="1"/>
-    <geom name="table4" type="box" size="0.05 0.6 0.05" pos="0.175 -0.35 0.08" rgba="0 0 0 1" group="1"/>
-    <geom name="table5" type="box" size="0.05 0.7 0.05" pos="-0.175 -0.35 0.08" rgba="0 0 0 1" group="1"/>
+    <body name="table" pos="0.1 0.28 0.73">
+    <geom name="table1" type="box" size="0.2 0.25 0.05" pos="0.0 -0.855 0.1" rgba="0 0 0 1" group="1"/>
+    <geom name="table2" type="box" size="0.2 0.034 0.05" pos="0.0 -0.315 0.1" rgba="0 0 0 1" group="1"/>
+    <geom name="table3" type="box" size="0.2 0.25 0.05" pos="0.0 0.2 0.1" rgba="0 0 0 1" group="1"/>
+    <geom name="table4" type="box" size="0.05 0.6 0.05" pos="0.175 -0.35 0.1" rgba="0 0 0 1" group="1"/>
+    <geom name="table5" type="box" size="0.05 0.7 0.05" pos="-0.175 -0.35 0.1" rgba="0 0 0 1" group="1"/>
     
     </body>
-
+    
     <!-- front view -->
     <camera mode="fixed" name="frontview" pos="1.6 0 1.45" quat="0.56 0.43 0.43 0.56"/>
     <!-- bird view -->
@@ -96,3 +116,4 @@
 
   </worldbody>
 </mujoco>
+

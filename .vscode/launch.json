@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Run smoothaction_collection.py",
+        "type": "python",
+        "request": "launch",
+        "program": "${workspaceFolder}/collect.py",
+        "console": "integratedTerminal",
+        "args": [
+          "--level", "1",
+          "--object", "bread"
+        ]
+      }
+    ]
+  }
+  

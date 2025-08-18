@@ -20,57 +20,57 @@ UP_DOWN = 0.25
 
 INSTRUCTION_TEMPLATES = {
     "milk": [
-        "Please grab the milk and place it on the table.",
-        "Pick up the milk carton and move it to the tray.",
-        "Lift the milk and drop it in the basket.",
-        "Take the milk and place it near the sink."
+        "Pick up the milk and place it into the empty space in the bin.",
+        "Grab the milk carton and move it to the unoccupied spot in the bin.",
+        "Lift the milk and carefully place it in the free location among the cubes.",
+        "Take the milk and put it into the vacant slot inside the bin."
     ],
     "bread": [
-        "Pick up the bread and put it in the basket.",
-        "Grab the loaf of bread and move it to the counter.",
-        "Lift the bread and drop it on the tray.",
-        "Please relocate the bread to the plate."
+        "Pick up the bread and place it in the available empty space in the bin.",
+        "Grab the loaf of bread and move it into the unfilled position.",
+        "Lift the bread and drop it in the remaining free space next to the cubes.",
+        "Relocate the bread to the empty slot inside the target bin area."
     ],
     "can": [
-        "Take the can and place it on the shelf.",
-        "Pick up the can and move it to the bin.",
-        "Grab the can and drop it near the box.",
-        "Relocate the can to the storage area."
+        "Take the can and place it into the only remaining empty space in the bin.",
+        "Pick up the can and move it into the free spot among the cubes.",
+        "Grab the can and place it into the vacant location left in the bin.",
+        "Relocate the can into the unoccupied space on the table."
     ],
     "juice": [
-        "Lift the juice bottle and set it on the table.",
-        "Grab the juice container and drop it in the tray.",
-        "Take the juice and place it on the counter."
+        "Lift the juice bottle and set it into the empty space in the bin.",
+        "Grab the juice container and drop it into the last available slot.",
+        "Take the juice and place it in the unoccupied area next to the cubes."
     ],
     "cereals": [
-        "Lift the cereal box and set it on the table.",
-        "Grab the cereal box and drop it in the tray.",
-        "Take the cereal box and place it on the counter."
+        "Lift the cereal box and place it into the remaining empty spot in the bin.",
+        "Grab the cereal box and drop it into the open space near the cubes.",
+        "Take the cereal box and set it in the only free position inside the bin."
     ],
     "bottle": [
-        "Lift the bottle and set it on the table.",
-        "Grab the bottle and drop it in the tray.",
-        "Take the bottle and place it on the counter."
+        "Lift the bottle and place it into the bin's remaining empty space.",
+        "Grab the bottle and drop it into the free slot between the cubes.",
+        "Take the bottle and put it into the unoccupied spot in the bin."
     ],
     "cube": [
-        "Lift the cube and set it on the table.",
-        "Grab the cube and drop it in the tray.",
-        "Take the cube and place it on the counter."
+        "Lift the cube and set it into the last empty space in the bin.",
+        "Grab the cube and place it into the unfilled slot among the other cubes.",
+        "Take the cube and drop it into the open area left in the bin."
     ],
     "box": [
-        "Lift the box and set it on the table.",
-        "Grab the box and drop it in the tray.",
-        "Take the box and place it on the counter."
+        "Lift the box and place it into the free space in the bin.",
+        "Grab the box and carefully set it in the only available spot.",
+        "Take the box and position it in the bin where there is no other cube."
     ],
     "capsule": [
-        "Lift the capsule and set it on the table.",
-        "Grab the capsule and drop it in the tray.",
-        "Take the capsule and place it on the counter."
+        "Lift the capsule and place it into the empty position inside the bin.",
+        "Grab the capsule and drop it into the free area left between the cubes.",
+        "Take the capsule and put it into the remaining unoccupied space."
     ],
     "cylinder": [
-        "Lift the cylinder and set it on the table.",
-        "Grab the cylinder and drop it in the tray.",
-        "Take the cylinder and place it on the counter."
+        "Lift the cylinder and set it into the last free space in the bin.",
+        "Grab the cylinder and move it into the available slot near the other cubes.",
+        "Take the cylinder and place it into the bin's empty location."
     ]
 }
 
@@ -144,11 +144,12 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
     # --- Extrinsics ---
     cam_pos = env.sim.model.cam_pos[cam_id].tolist()
     cam_quat = env.sim.model.cam_quat[cam_id]  # [w, x, y, z]
-    rotation_matrix = R.from_quat([cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]).as_matrix().tolist()
+    rotation_matrix = R.from_quat(cam_quat).as_matrix().tolist()
+    cam_quat = [cam_quat[1], cam_quat[2], cam_quat[3], cam_quat[0]]
 
     extrinsics = {
         "position_xyz": cam_pos,
-        "rotation_quaternion_wxyz": cam_quat.tolist(),
+        "rotation_quaternion_wxyz": cam_quat,
         "rotation_matrix": rotation_matrix,
         "camera_to_world_matrix": [
             rotation_matrix[0] + [cam_pos[0]],
@@ -192,6 +193,7 @@ def main(task):
             os.makedirs(os.path.join(base_dir,cam+"_depth"), exist_ok=True)
     
         env = BinToBinTransfer(
+            target_obj = "bread",
             robots="Panda",
             controller_configs=controller_config,
             has_renderer=False,           
@@ -251,6 +253,10 @@ def main(task):
         )
 
     obs = env.reset()
+    print("Random cube positions:")
+    for cube, pos in env.cube_positions.items():
+        print(f"{cube}: {pos}")
+    print(env.target_position)
 
     first_cam_seg = f"{camera_names[0]}_segmentation_class"
     seg = obs.get(first_cam_seg)
@@ -383,17 +389,16 @@ def main(task):
            #  print("action", action)
             obs, reward, done, info = env.step(action)
 
-            # NEW: print gripper z position
-            gripper_pos = robot._hand_pos
 
-            eef_pos = gripper_pos["right"]
-            eef_quat = robot._hand_quat["right"] # [x, y, z, w]
+            eef_pos   = obs["robot0_eef_pos"]
+            eef_quat = obs["robot0_eef_quat"]
+            eef_quat = eef_quat[[3, 0, 1, 2]]
 
-            joint_state = robot.sim.data.qpos[robot._ref_joint_pos_indexes] # [7]
+            joint_state =  obs["robot0_joint_pos"]
             gripper_indices = list(robot._ref_gripper_joint_pos_indexes.values())
             gripper_qpos = robot.sim.data.qpos[gripper_indices]
 
-            gripper_pos_m = np.array([np.mean(gripper_qpos)])
+            gripper_pos_m = obs["robot0_gripper_qpos"][0]
 
             small_obs = {k: v for k,v in obs.items()
                             if not k.endswith("_image") and not k.endswith("_depth") and not k.endswith("_segmentation_class")}
