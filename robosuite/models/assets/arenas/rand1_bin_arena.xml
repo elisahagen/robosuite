@@ -100,8 +100,6 @@
     
     </body>
     
-
-
     <!-- front view -->
     <camera mode="fixed" name="frontview" pos="1.6 0 1.45" quat="0.56 0.43 0.43 0.56"/>
     <!-- bird view -->

@@ -34,8 +34,8 @@ STEP_SIZE = 0.3
 STEP_XY = 0.3
 STEP_Z = 0.25
 TOL_XY = 0.01
-TOL_X = 0.005
-TOL_Y = 0.005
+TOL_X = 0.015
+TOL_Y = 0.015
 TOL_Z = 0.004
 
 CAM_MODALITIES = ["image", "depth", "segmentation"]
@@ -274,11 +274,11 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
     delta_xy   = np.array(target_xy)[:2] - current_xy
 
     # 1) decide how many equal‐length steps of size STEP_XY you need
-    num_steps = int(np.ceil((np.linalg.norm(delta_xy) * 100))) + 8
+    num_steps = int(np.ceil((np.linalg.norm(delta_xy) * 100))) 
 
     # 2) distance you want per step
     vel_cmd = delta_xy
-
+    print("delta beginning", delta_xy)
     for _ in range(num_steps):
         action = {
             "right":         np.array([vel_cmd[0], vel_cmd[1], 0, 0, 0, 0]),
@@ -288,12 +288,26 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         obs, rew, done, _ = env.step(a)
         data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
-    
-    if abs(delta_xy[1]) > TOL_XY or abs(delta_xy[0]) > TOL_XY: 
+
+    current_xy = np.array(obs["robot0_eef_pos"])[:2]
+    delta_xy   = np.array(target_xy)[:2] - current_xy
+    print(delta_xy, "delta_xy")
+
+    dx = delta_xy[0]
+    dy = delta_xy[1]
+    while abs(dx) > TOL_X or abs(dy) > TOL_Y: 
         gx, gy = obs["robot0_eef_pos"][:2]
         dx, dy = gx - target_xy[0], gy - target_xy[1]
-        step_x = -STEP_XY * np.sign(dx)
-        step_y = -STEP_XY * np.sign(dy)
+        print("dx", dx, dy)
+        if abs(dx) < TOL_X: 
+            step_x = 0
+            step_y = -STEP_XY * np.sign(dy)
+        elif abs(dy) < TOL_Y:
+            step_y = 0
+            step_x = -STEP_XY * np.sign(dx)
+        else:
+            step_x = -STEP_XY * np.sign(dx)
+            step_y = -STEP_XY * np.sign(dy)
         action = {
             "right":         np.array([step_x, step_y, 0.0, 0.0, 0.0, 0.0]),
             "right_gripper": np.array([+1.0])
@@ -372,9 +386,9 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
     try: 
         target_xy = env.target_position #[0.05, 0.14, 0.6] #
         if target_xy[1] < 0.2:
-            target_xy[1] = target_xy[1] + 0.02
+            target_xy[1] = target_xy[1] 
         elif target_xy[1] >= 0.2:
-            target_xy[1] = target_xy[1] - 0.02
+            target_xy[1] = target_xy[1] 
         print(f"Target position: {target_xy}")
     except:
         target_xy = [0.06, 0.16, 0.6]
