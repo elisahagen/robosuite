@@ -460,7 +460,7 @@ if __name__ == "__main__":
 
     setup_dirs(base_dir, cam_names)
 
-    if level >= 1:
+    if level > 1:
         randomize_cubes = True
     else:
         randomize_cubes = False

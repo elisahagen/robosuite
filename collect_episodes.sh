@@ -3,7 +3,7 @@ set +e
 
 for i in $(seq 1 20); do
   echo "=== Starting episode $i ($(date +'%Y-%m-%d %H:%M:%S')) ==="
-  python collect_data.py --object box --level 2
+  python collect_data.py --object box --level 1
   status=$?
 
     if [ $status -ne 0 ]; then
