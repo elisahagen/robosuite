@@ -4,7 +4,7 @@ from robosuite.environments.manipulation.pick_place import PickPlace
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 from robosuite.models.objects import MilkObject, BreadObject, BottleObject, CerealObject
 from robosuite.models.objects import BoxObject, CapsuleObject, BallObject, CylinderObject
-
+import random
 
 # # Define two cube objects
 cube1 = BoxObject(name="cube1", size=[0.04, 0.04, 0.04], rgba=[1, 0, 0, 1]) 
@@ -16,6 +16,7 @@ class BinToBinTransfer(PickPlace):
     def __init__(self, target_obj, randomize_cubes=False, **kwargs):
         self.randomize_cubes = randomize_cubes
         self.target_obj = target_obj
+        self.obj_height = random.uniform(0.013, 0.04) 
         super().__init__(single_object_mode=0,**kwargs)
 
     def _construct_objects(self):
@@ -29,7 +30,7 @@ class BinToBinTransfer(PickPlace):
         elif self.target_obj == "bottle":
             self.objects = [BottleObject(name="Bottle")]        
         elif self.target_obj == "box":
-            self.objects = [BoxObject(name="Box", size=[0.02, 0.02, 0.02])]
+            self.objects = [BoxObject(name="Box", size=[0.02, 0.02, self.obj_height])]
         elif self.target_obj == "bread":
             self.objects = [BreadObject(name="Bread")]
         # self.objects = [BoxObject(name="Box", size=[0.02, 0.02, 0.02])] #, BreadObject(name="Bread2"), MilkObject(name="Milk"), BottleObject(name="Bottle")]

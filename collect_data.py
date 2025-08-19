@@ -138,7 +138,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
     return step, data_records
 
 
-def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
+def move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height):
     """
     Phase 2: With X–Y already aligned, move just in Z until within TOL_Z.
     """
@@ -147,6 +147,7 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
     else: 
         obs, rew, done, _ = env.step(robot.create_action_vector({"right": np.zeros(6), "right_gripper": np.array([-1.0])}))  
 
+    z_var = np.random.uniform(-0.0015, 0.0015)
     while True:
         
         if target is not None: 
@@ -155,8 +156,12 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records):
         else:
             dz = np.array(obs["Box_to_robot0_eef_pos"])[2]
         
+        if target_obj_height > 0.025:
+            tolz = TOL_Z + 0.01 + z_var
+        else:
+            tolz = TOL_Z + z_var
 
-        if abs(dz) < TOL_Z:
+        if abs(dz) < tolz:
             print("Break")
             break
 
@@ -351,7 +356,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
 
     return step, data_records 
 
-def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj):
+def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj, target_obj_height):
     """
     1) Move above object
     2) Descend & grasp
@@ -405,7 +410,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
     if abort_if_too_many_steps(): return
 
     # 3) descend to object
-    step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records)
+    step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height)
     if abort_if_too_many_steps(): return
 
     # 4) close gripper
@@ -425,7 +430,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
 
     # 5) lift up 15cm
     target =  np.array([0,0,0.13])
-    step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records)
+    step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height)
 
     # 6) move over bin at X=0.3, Y=0
     step, data_records = move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records)
@@ -487,6 +492,7 @@ if __name__ == "__main__":
     for cam in cam_names:
         save_intrinsic_extrinsic(env, cam, base_dir)
 
+    target_obj_height = env.obj_height
     robot = env.robots[0]
     
     
@@ -498,7 +504,7 @@ if __name__ == "__main__":
     # bread_canonical.export(canonical_out, file_type="ply", encoding="ascii")
     # print(f"[+] wrote canonical bread mesh → {canonical_out}")
 
-    auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj)
+    auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_obj, target_obj_height)
 
 
     env.close()
