@@ -105,8 +105,8 @@ class BinToBinTransfer(PickPlace):
             UniformRandomSampler(
                 name="Bin1ObjectSampler",
                 mujoco_objects=self.objects,
-                x_range=[-0.25, 0.025],
-                y_range=[-0.35, 0.145],
+                x_range=[-0.025, 0.025],
+                y_range=[-0.035, 0.145],
                 rotation=self.z_rotation,
                 rotation_axis="z",
                 ensure_object_boundary_in_range=True,
