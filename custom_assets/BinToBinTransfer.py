@@ -16,7 +16,7 @@ class BinToBinTransfer(PickPlace):
     def __init__(self, target_obj, randomize_cubes=False, **kwargs):
         self.randomize_cubes = randomize_cubes
         self.target_obj = target_obj
-        self.obj_height = random.uniform(0.013, 0.04) 
+        self.obj_height = 0.02 #random.uniform(0.013, 0.04) 
         super().__init__(single_object_mode=0,**kwargs)
 
     def _construct_objects(self):
