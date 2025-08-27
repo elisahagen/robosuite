@@ -6,7 +6,7 @@ from robosuite import load_composite_controller_config
 from custom_assets.BinToBinTransfer import BinToBinTransfer  
 from rot_utils import rotation_6d_to_matrix, matrix_to_quaternion, quaternion_to_euler
 # === Load parquet episode ===
-parquet_path = "/home/elisa/Documents/data/robosuite_automated/smooth1/conv_subtasks/picking/s_1/data/chunk-000/episode_000000.parquet"
+parquet_path = "/home/elisa/Documents/data/robosuite_automated/smooth1/conv_subtasks/binboxpickingwindow/s_16/data/chunk-000/episode_000000.parquet"
 df = pd.read_parquet(parquet_path)
 
 # Controller setup
@@ -33,18 +33,18 @@ env = BinToBinTransfer(
 
 obs = env.reset()
 
-# Optionally: set bread pose from first observation state if available
-if "observation.state.pos_xyzquat_right" in df.columns:
-    bread_state = np.array(df.iloc[0]["observation.state.pos_xyzquat_right"])
-    print("bread_state", bread_state.shape)
-    bread_pos, bread_quat = bread_state[:3], bread_state[3:]
-    bread_quat = bread_quat[[3, 0, 1, 2]]  # xyzw -> wxyz if needed
+# # Optionally: set bread pose from first observation state if available
+# if "observation.state.pos_xyzquat_right" in df.columns:
+#     bread_state = np.array(df.iloc[0]["observation.state.pos_xyzquat_right"])
+#     print("bread_state", bread_state.shape)
+#     bread_pos, bread_quat = bread_state[:3], bread_state[3:]
+#     bread_quat = bread_quat[[3, 0, 1, 2]]  # xyzw -> wxyz if needed
 
-    obj_body_id = env.sim.model.body_name2id("Bread_main")  
-    env.sim.model.body_pos[obj_body_id] = bread_pos
-    env.sim.model.body_quat[obj_body_id] = bread_quat
-    env.sim.data.set_joint_qpos("Bread_joint0", np.concatenate([bread_pos, bread_quat]))
-    env.sim.forward()
+#     obj_body_id = env.sim.model.body_name2id("Bread_main")  
+#     env.sim.model.body_pos[obj_body_id] = bread_pos
+#     env.sim.model.body_quat[obj_body_id] = bread_quat
+#     env.sim.data.set_joint_qpos("Bread_joint0", np.concatenate([bread_pos, bread_quat]))
+#     env.sim.forward()
 
 # === Replay loop ===
 for i, row in df.iterrows():
