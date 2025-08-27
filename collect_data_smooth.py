@@ -33,8 +33,8 @@ from collections import deque
 STEP_SIZE = 0.3
 STEP_XY = 0.3
 STEP_Z = 0.25
-TOL_XY = 0.005
-TOL_X = 0.015
+TOL_XY = 0.008
+TOL_X = 0.008
 TOL_Y = 0.015
 TOL_Z = 0.004
 
@@ -131,11 +131,12 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
 
         vel_cmd = delta_xy / np.linalg.norm(delta_xy) * STEP_XY
 
-        if abs(rel_pos[0]) < TOL_XY:
+        if abs(rel_pos[0]) < TOL_X:
             vel_cmd[0] = 0 
-        if abs(rel_pos[1]) < TOL_XY:
+        if abs(rel_pos[1]) < TOL_Y:
             vel_cmd[1] = 0
 
+        print("vel_cmd", vel_cmd, rel_pos)
         if vel_cmd[0] == 0 and vel_cmd[1] == 0 and step_rad == 0:
             break
 
