@@ -95,7 +95,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
     local_steps = 0
     prev_vel_cmd = np.zeros(2)
     while True:
-        if stage == 2 and local_steps > 60:
+        if stage == 2 and local_steps > 50:
             break
         
         q_cur = obs["Box_to_robot0_eef_quat"]
@@ -129,7 +129,15 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
         
         rel_pos = np.array(obs["Box_to_robot0_eef_pos"])  # [x,y,z] from bread→eef
 
-        if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_XY:
+        # if abs(rel_pos[0]) < TOL_XY:
+        #     vel_cmd[0] = 0
+        # if abs(rel_pos[1]) < TOL_Y:
+        #     vel_cmd[1] = 0
+
+        if abs(rel_pos[0]) < 0.02 and abs(rel_pos[1]) < 0.02:    
+            vel_cmd = vel_cmd * 0.8
+
+        if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_Y:    
             break
 
         action = {
