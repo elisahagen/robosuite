@@ -84,7 +84,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
     TOL_DEG = 10
     STEP_RAD = 0.2
     last_sign = None
-
+    change_vel_cmd = False
     # 2) distance you want per step
     if np.linalg.norm(delta_xy) > 1e-6:
         vel_cmd = delta_xy / np.linalg.norm(delta_xy) * STEP_XY
@@ -134,12 +134,14 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
         # if abs(rel_pos[1]) < TOL_Y:
         #     vel_cmd[1] = 0
 
-        if abs(rel_pos[0]) < 0.02 and abs(rel_pos[1]) < 0.02:    
-            vel_cmd = vel_cmd * 0.8
+        if abs(rel_pos[0]) < 0.02 and abs(rel_pos[1]) < 0.02 and not change_vel_cmd:    
+            change_vel_cmd = True
+            vel_cmd = vel_cmd * 0.5
 
         if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_Y:    
             break
 
+        print(vel_cmd, rel_pos)
         action = {
             "right":         np.array([vel_cmd[0], vel_cmd[1], 0, 0, 0, step_rad]),
             "right_gripper": np.array([-1.0])
@@ -230,7 +232,7 @@ def quat_to_axis_angle(quat):
     siny_cosp = 2 * (qw * qz + qx * qy)
     cosy_cosp = 1 - 2 * (qy * qy + qz * qz)
     eulerVec[2] = np.arctan2(siny_cosp, cosy_cosp)
-    print(s, qw, qx, qy, qz, xyz)
+
     return xyz/s, eulerVec[2]
 
 def quat_to_axis_angle1(q):
@@ -241,7 +243,6 @@ def quat_to_axis_angle1(q):
     s = math.sqrt(max(0.0, 1 - w*w))
     if s < 1e-8:
         return np.array([1.0, 0.0, 0.0]), 0.0
-    print(xyz, w, s, angle)
     return xyz / s, angle
 
 def axis_angle_to_quat(axis, angle_rad):
