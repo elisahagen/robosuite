@@ -266,6 +266,7 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         if mask.ndim == 3 and mask.shape[-1] == 1:
             mask = mask[:, :, 0]
         
+        
         raw_labels = np.flipud(mask.astype(np.uint16))
         cam_seg_raw = f"{cam}_segmentation_class"
         p_raw = os.path.join(base_dir, cam_seg_raw, f"{step:05d}.png")

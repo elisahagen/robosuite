@@ -6,7 +6,7 @@ from robosuite import load_composite_controller_config
 from custom_assets.BinToBinTransfer import BinToBinTransfer  
 from rot_utils import rotation_6d_to_matrix, matrix_to_quaternion, quaternion_to_euler
 # === Load parquet episode ===
-parquet_path = "/home/elisa/Documents/data/robosuite_automated/smooth1/conv_subtasks/binboxpickingwindow/s_16/data/chunk-000/episode_000000.parquet"
+parquet_path = "/home/elisa/Documents/data/robosuite_automated/smooth1/conv_subtasks/moveplace/s_16/data/chunk-000/episode_000008.parquet"
 df = pd.read_parquet(parquet_path)
 
 # Controller setup

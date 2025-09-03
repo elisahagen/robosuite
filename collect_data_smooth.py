@@ -31,7 +31,7 @@ from utils.utils import *
 from collections import deque
 
 STEP_SIZE = 0.3
-STEP_XY = 0.2
+STEP_XY = 0.18
 STEP_Z = 0.25
 TOL_XY = 0.01
 TOL_X = 0.01
@@ -95,7 +95,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
     local_steps = 0
     prev_vel_cmd = np.zeros(2)
     while True:
-        if stage == 2 and local_steps > 50:
+        if stage == 2 and local_steps > 60:
             break
         
         q_cur = obs["Box_to_robot0_eef_quat"]
@@ -134,9 +134,9 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
         # if abs(rel_pos[1]) < TOL_Y:
         #     vel_cmd[1] = 0
 
-        if abs(rel_pos[0]) < 0.02 and abs(rel_pos[1]) < 0.02 and not change_vel_cmd:    
-            change_vel_cmd = True
-            vel_cmd = vel_cmd * 0.5
+        # if abs(rel_pos[0]) < 0.015 and abs(rel_pos[1]) < 0.015 and not change_vel_cmd:    
+        #     change_vel_cmd = True
+        #     vel_cmd = vel_cmd * 0.5
 
         if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_Y:    
             break
@@ -182,6 +182,13 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records, targe
             print("Break")
             break
 
+        rel_pos = np.array(obs["Box_to_robot0_eef_pos"])
+        if abs(rel_pos[0]) > TOL_X or abs(rel_pos[1]) > TOL_Y:
+            print(f"XY drift detected (dx={rel_pos[0]:.4f}, dy={rel_pos[1]:.4f}), realigning...")
+            step, data_records = move_xy_to_obj(
+                env, robot, base_dir, cam_names, step, data_records, stage=2
+            )
+  
         step_z = STEP_Z * np.sign(dz)
         if target is not None:
             for i in range(30): 
@@ -380,7 +387,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
             target_xy[1] = target_xy[1] 
         print(f"Target position: {target_xy}")
     except:
-        target_xy = [0.06, 0.16, 0.6]
+        target_xy = [0.1, 0.14, 0.6]
     # 1) move above object
     step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
     if abort_if_too_many_steps(): return
@@ -469,6 +476,7 @@ if __name__ == "__main__":
         randomize_cubes=randomize_cubes,
         initialization_noise=None
     )
+    print(env.sim.model._body_name2id)
     for cam in cam_names:
         save_intrinsic_extrinsic(env, cam, base_dir)
 
