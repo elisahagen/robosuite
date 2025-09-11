@@ -16,7 +16,7 @@ class BinToBinTransfer(PickPlace):
     def __init__(self, target_obj, randomize_cubes=False, **kwargs):
         self.randomize_cubes = randomize_cubes
         self.target_obj = target_obj
-        self.obj_height = random.uniform(0.013, 0.04) 
+        self.obj_height = 0.02 # random.uniform(0.013, 0.04) 
         super().__init__(single_object_mode=0,**kwargs)
 
     def _construct_objects(self):
@@ -105,8 +105,8 @@ class BinToBinTransfer(PickPlace):
             UniformRandomSampler(
                 name="Bin1ObjectSampler",
                 mujoco_objects=self.objects,
-                x_range=[-0.25, 0.025],
-                y_range=[-0.35, 0.145],
+                x_range=[-0.15, 0.025],
+                y_range=[-0.2, 0.145],
                 rotation=self.z_rotation,
                 rotation_axis="z",
                 ensure_object_boundary_in_range=True,
@@ -115,6 +115,7 @@ class BinToBinTransfer(PickPlace):
                 z_offset=0.101,
             )
         )
+        
 
         # self.placement_initializer.append_sampler(
         #     UniformRandomSampler(
