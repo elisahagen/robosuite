@@ -23,7 +23,7 @@ bread_quat = bread_quat[[3, 0, 1, 2]]
 
 env = BinToBinTransfer(
     robots="Panda",
-    target_obj="bread",
+    target_obj="box",
     controller_configs=ctrl_cfg,
     has_renderer=True,
     has_offscreen_renderer=False,
@@ -38,12 +38,12 @@ env = BinToBinTransfer(
 
 obs = env.reset()
 
-obj_body_id = env.sim.model.body_name2id("Bread_main")  
+obj_body_id = env.sim.model.body_name2id("Box_main")  
 
 env.sim.model.body_pos[obj_body_id] = bread_pos
 env.sim.model.body_quat[obj_body_id] = bread_quat  
 
-joint_name = "Bread_joint0"  
+joint_name = "Box_joint0"  
 env.sim.data.set_joint_qpos(joint_name, np.concatenate([bread_pos, bread_quat]))
 env.sim.forward()
 
