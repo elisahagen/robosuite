@@ -265,6 +265,13 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
         mask = obs[f"{cam}_segmentation_class"]
         if mask.ndim == 3 and mask.shape[-1] == 1:
             mask = mask[:, :, 0]
+        
+        
+        raw_labels = np.flipud(mask.astype(np.uint16))
+        cam_seg_raw = f"{cam}_segmentation_class"
+        p_raw = os.path.join(base_dir, cam_seg_raw, f"{step:05d}.png")
+        write_q.put((p_raw, raw_labels))
+
         scaled  = (mask * (255 // (mask.max() + 1))).astype(np.uint8)
         colored = cv2.applyColorMap(scaled, cv2.COLORMAP_HSV)
         colored = np.flipud(colored)
