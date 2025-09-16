@@ -98,21 +98,22 @@ class BinToBinTransfer(PickPlace):
 
     def _get_placement_initializer(self):
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
-        bin_x_half = 0.08 #self.model.mujoco_arena.table_full_size[0] / 2 - 0.05
-        bin_y_half = 0.08 #self.model.mujoco_arena.table_full_size[1] / 2 - 0.05
+        bin_x_half = self.model.mujoco_arena.table_full_size[0] / 2 - 0.05
+        bin_y_half = self.model.mujoco_arena.table_full_size[1] / 2 - 0.05
+
 
         self.placement_initializer.append_sampler(
             UniformRandomSampler(
                 name="Bin1ObjectSampler",
                 mujoco_objects=self.objects,
-                x_range=[-0.015, 0.025],
+                x_range=[-0.015, 0.055],
                 y_range=[-0.015, 0.125],
                 rotation=self.z_rotation,
                 rotation_axis="z",
                 ensure_object_boundary_in_range=True,
                 ensure_valid_placement=True,
                 reference_pos=self.bin1_pos,
-                z_offset=0.161,
+                z_offset=0.141,
             )
         )
 
