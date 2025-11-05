@@ -33,9 +33,9 @@ from collections import deque
 STEP_SIZE = 0.3
 STEP_XY = 0.18
 STEP_Z = 0.25
-TOL_XY = 0.01
+TOL_XY = 0.013
 TOL_X = 0.01
-TOL_Y = 0.009
+TOL_Y = 0.013
 TOL_Z = 0.004
 
 CAM_MODALITIES = ["image", "depth", "segmentation"]
@@ -95,7 +95,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
     local_steps = 0
     prev_vel_cmd = np.zeros(2)
     while True:
-        if stage == 2 and local_steps > 60:
+        if stage == 2 and local_steps > 53:
             break
         
         q_cur = obs["Box_to_robot0_eef_quat"]
@@ -148,7 +148,7 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
         }
         a = robot.create_action_vector(action)
         obs, rew, done, _ = env.step(a)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
         local_steps += 1
 
@@ -199,7 +199,7 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records, targe
                 a = robot.create_action_vector(action)
        
                 obs, rew, done, _ = env.step(a)
-                data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+                data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
                 step += 1
                 
             return step, data_records 
@@ -212,7 +212,7 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records, targe
         
         a = robot.create_action_vector(action)
         obs, rew, done, _ = env.step(a)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs,env,  base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
         abort_if_too_many_steps(step)
         
@@ -282,7 +282,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         }
         a = robot.create_action_vector(action)
         obs, rew, done, _ = env.step(a)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
 
     current_xy = np.array(obs["robot0_eef_pos"])[:2]
@@ -311,7 +311,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         a = robot.create_action_vector(action)
         obs, rew, done,_ = env.step(a)
         
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
 
 
@@ -322,7 +322,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         }
         a = robot.create_action_vector(action)
         obs, rew, done,_ = env.step(a)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
 
     action = {
@@ -332,7 +332,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
     for i in range(10):
         a = robot.create_action_vector(action)
         obs, rew, done, _ = env.step(a)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
 
     for _ in range(25):
@@ -342,7 +342,7 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         }
         a = robot.create_action_vector(action)
         obs, rew, done,_ = env.step(a)
-        data_records = save_img_info(obs, base_dir, cam_names, step, a, rew, done, robot, data_records)
+        data_records = save_img_info(obs, env, base_dir, cam_names, step, a, rew, done, robot, data_records)
         step += 1
 
     return step, data_records 
@@ -411,7 +411,7 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
         action = robot.create_action_vector(action)
         
         obs,rew, done,  _ = env.step(action)
-        save_img_info(obs, base_dir, cam_names, step, action, rew, done, robot, data_records)
+        save_img_info(obs, env, base_dir, cam_names, step, action, rew, done, robot, data_records)
         if abort_if_too_many_steps(): return
         step += 1
 
@@ -441,7 +441,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     target_obj = args.object.lower()
     level = args.level
-    base_dir = f"/home/elisa/Documents/data/robosuite_automated/teleop_dataset_{level}_{datetime.now():%Y%m%d_%H%M%S}"
+    base_dir = f"/home/elisa/Documents/data/robosuite_automated/stage2/teleop_dataset_{level}_{datetime.now():%Y%m%d_%H%M%S}"
     cam_names = ["left_side_view", "right_side_view",
                  "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"]
 

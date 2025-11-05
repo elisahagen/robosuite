@@ -362,7 +362,7 @@ class InverseKinematicsController(JointPositionController):
 
         return sim.data.qpos[joint_indices]
 
-    def set_goal(self, delta, set_ik=None):
+    def set_goal(self, delta=None, set_ik=None):
         """
         Sets the internal goal state of this controller based on @delta
 
@@ -378,31 +378,48 @@ class InverseKinematicsController(JointPositionController):
         # Update state
         self.update(force=True)  # force because new_update = True only set in super().run_controller()
 
+        if set_ik is not None:
+            # ----------------------------------------
+            # NEW: Absolute mode
+            # ----------------------------------------
+            target_pos, target_quat = set_ik[:3], set_ik[3:7]
+            assert target_pos.shape == (3,), "set_ik[0] must be 3D position"
+            assert target_quat.shape == (4,), "set_ik[1] must be quaternion (x,y,z,w)"
+
+            # Compute deltas from current ref pose
+            dpos = target_pos - self.ref_pos
+            # Compute relative quaternion rotation: q_rel = q_target * q_current^-1
+            q_rel = T.quat_multiply(target_quat, T.quat_inverse(T.mat2quat(self.ref_ori_mat)))
+            drot = T.quat2axisangle(q_rel)
+
+            # Fake a delta vector for normal processing
+            delta = np.concatenate([dpos, drot])
+
+        # At this point, delta is guaranteed to be defined
         if self.num_ref_sites > 1:
             delta = np.array(delta).reshape(self.num_ref_sites, 6)
 
-        # hardcoding to assumes 6D delta input for now
+        # Hardcode to assume 6D delta input
         (dpos, dquat) = self._clip_ik_input(delta[..., :3], delta[..., 3:6])
 
         # Set interpolated goals if necessary
         if self.interpolator_pos is not None:
-            # Absolute position goal
             self.interpolator_pos.set_goal(dpos * self.user_sensitivity + self.reference_target_pos)
 
         if self.interpolator_ori is not None:
-            # Relative orientation goal
-            self.interpolator_ori.set_goal(dquat)  # goal is the relative change in orientation
-            self.ori_ref = np.array(self.ref_ori_mat)  # reference is the current orientation at start
-            self.relative_ori = np.zeros(3)  # relative orientation always starts at 0
+            self.interpolator_ori.set_goal(dquat)
+            self.ori_ref = np.array(self.ref_ori_mat)
+            self.relative_ori = np.zeros(3)
 
-        # Run ik prepropressing to convert pos, quat ori to desired positions
+        # Convert to internal IK input format
         requested_control = self._make_input(delta, self.reference_target_orn)
 
-        # Compute desired (absolute) joint positions to achieve eef pos / ori
+        # Compute desired joint positions
         positions = self.get_control(**requested_control, update_targets=True)
 
-        # Set the goal positions for the underlying position controller
+        # Feed into position controller
         super().set_goal(positions)
+
 
     def run_controller(self):
         """

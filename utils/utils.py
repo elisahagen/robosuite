@@ -8,6 +8,9 @@ import queue
 from instruction_templates import InstructionTemplatesLevel1, InstructionTemplatesLevel2, InstructionTemplatesLevel3
 import trimesh
 import xml.etree.ElementTree as ET
+from robosuite.utils.camera_utils import (
+    get_camera_intrinsic_matrix
+)
 
 def writer_loop(q):
     """Background thread: write out images to disk."""
@@ -170,13 +173,14 @@ def convert_depth_buffer_to_meters(depth_buffer, near=0.01, far=10.0):
     depth = (2.0 * near * far) / (far + near - z_e * (far - near))
     return depth
 
-def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, data_records = None):
+def save_img_info(obs, env, base_dir, cam_names, step, action_vec, rew, done, robot, data_records = None):
     small_obs = {
         k: v for k, v in obs.items()
         if not (k.endswith("_image") or k.endswith("_depth") or k.endswith("_segmentation_class"))
     }
     # print("small_obs", small_obs.keys())
     # EEF
+    # print(obs.keys())
     eef_pos   = obs["robot0_eef_pos"]
     eef_quat = obs["robot0_eef_quat"]
     eef_quat = eef_quat[[3, 0, 1, 2]] 
@@ -206,6 +210,29 @@ def save_img_info(obs, base_dir, cam_names, step, action_vec, rew, done, robot, 
 
     
     known_objects = set()
+    
+
+    sim = env.sim
+
+    # Get IDs of your fingertip-like sites
+    left_id = sim.model.site_name2id("gripper0_right_ee_y")
+    right_id = sim.model.site_name2id("gripper0_right_ee_x")
+
+    # Get their 3D world positions
+    left_pos = sim.data.site_xpos[left_id].copy()
+    right_pos = sim.data.site_xpos[right_id].copy()
+
+    print("Left keypoint:", left_pos)
+    print("Right keypoint:", right_pos)
+
+    # Append to your data record (raw 3D)
+    data_records.append({
+        "step": step,
+        "left_finger_pos": left_pos.tolist(),
+        "right_finger_pos": right_pos.tolist(),
+    })
+
+    # ---- Store everything ----
 
 
     # Add all object keys from each template level

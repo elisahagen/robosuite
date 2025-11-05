@@ -74,6 +74,10 @@ class BinToBinTransfer(PickPlace):
             # Also set color (optional)
             geom_id = self.sim.model.geom_name2id(f"{cube_name}_geom")
             self.sim.model.geom_rgba[geom_id] = cube_colors[cube_name]
+            size = self.sim.model.geom_size[geom_id].copy()
+            new_height = size[2] / 2
+            size[2] = new_height
+            self.sim.model.geom_size[geom_id] = size
 
             self.cube_positions[cube_name] = pos
             self.used_positions.append(pos)

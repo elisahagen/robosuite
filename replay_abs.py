@@ -5,12 +5,20 @@ import torch
 from robosuite import load_composite_controller_config
 from custom_assets.BinToBinTransfer import BinToBinTransfer  
 from rot_utils import rotation_6d_to_matrix, matrix_to_quaternion, quaternion_to_euler
+from robosuite.utils import transform_utils as T
+from robosuite.controllers.parts.arm.ik import InverseKinematicsController
+from robosuite.utils import transform_utils as T
 # === Load parquet episode ===
 parquet_path = "/home/elisa/Documents/data/robosuite_automated/smoothrot/conv_subtasks/moveplace/s_1/data/chunk-000/episode_000006.parquet"
 df = pd.read_parquet(parquet_path)
 
-# Controller setup
 ctrl_cfg = load_composite_controller_config(controller="BASIC")
+
+# The Panda arm = "right" in BASIC composite setup
+# ctrl_cfg["body_parts"]["right"]["type"] = "IK_POSE"
+# ctrl_cfg["body_parts"]["right"]["control_delta"] = False
+# ctrl_cfg["body_parts"]["right"]["input_type"] = "absolute"
+# ctrl_cfg["body_parts"]["right"]["input_ref_frame"] = "world"
 cam_names = [
     "left_side_view", "right_side_view",
     "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"
@@ -33,6 +41,9 @@ env = BinToBinTransfer(
 
 obs = env.reset()
 
+obj_body_id = env.sim.model.body_name2id("Box_main")  
+
+
 # # Optionally: set bread pose from first observation state if available
 # if "observation.state.pos_xyzquat_right" in df.columns:
 #     bread_state = np.array(df.iloc[0]["observation.state.pos_xyzquat_right"])
@@ -48,32 +59,36 @@ obs = env.reset()
 
 # === Replay loop ===
 for i, row in df.iterrows():
-    time.sleep(0.1)  # Slow down to visualize
-    action_raw = row["action.pos_euler"]
-    # pos = np.array(row["action.pos_xyzquat_right"][:3], dtype=np.float32)
+    time.sleep(0.1)  # optional slowdown for visualization
 
-    # # Extract rot6d from pos_xyzquat_right (if your parquet already stores it separately, use that instead)
-    # # Here I'm assuming columns exist: "action.rot6d" as a list of 6 floats
-    # quat = np.array(row["action.pos_xyzquat_right"][3:], dtype=np.float32)
- 
-    # # Convert to Euler angles (requires np input, so reorder and move to CPU)
-    # euler_angles = []
-    # print("q_np", quat)
-    # # q_xyzw = np.array([q_np[1], q_np[2], q_np[3], q_np[0]])  # convert [w,x,y,z] → [x,y,z,w]
-    # euler = quaternion_to_euler(quat)
-    # euler_angles.append(euler)
-    # euler_angles = np.stack(euler_angles, axis=0) .squeeze(0)              # (H, 3)
-              # (3,)
+    # --- Absolute target from dataset ---
+    abs_action = np.array(row["action.pos_euler"])
+    print(row)
+    target_pos = abs_action[:3]
+    target_euler = abs_action[3:6]
+    gripper_action = abs_action[-1]
 
-    # Gripper from action.position_normalized
-    grip = np.array([row["action.position_normalized"]], dtype=np.float32)
+    # --- Current EEF pose from observation ---
+    eef_pos = obs["robot0_eef_pos"].copy()
+    eef_quat = obs["robot0_eef_quat"].copy()
+    eef_mat = T.quat2mat(eef_quat)
+    eef_euler = T.mat2euler(eef_mat)
 
-    # Final action
-    # print(pos, euler, euler_angles, pos.shape, euler.shape, euler_angles.shape, grip.shape)
-    # env_action = np.concatenate([pos, euler_angles, grip], axis=-1)
-    print("action_raw", action_raw)
-    obs, reward, done, _ = env.step(action_raw)
-    print(f"Step {i}: Reward={reward}, Done={done}")
+    # --- Compute relative deltas ---
+    delta_pos = target_pos - eef_pos
+
+    # Convert orientation difference robustly via quaternions
+    target_mat = T.euler2mat(target_euler)
+    target_quat = T.mat2quat(target_mat)
+    delta_quat = T.quat_multiply(target_quat, T.quat_inverse(eef_quat))
+    delta_axisangle = T.quat2axisangle(delta_quat)
+
+    # --- Combine into full relative action ---
+    rel_action = np.concatenate([delta_pos, delta_axisangle, [gripper_action]])
+
+    # --- Step environment with relative action ---
+    obs, reward, done, info = env.step(rel_action)
+    env.render()
 
 print("Replay finished.")
 env.close()
