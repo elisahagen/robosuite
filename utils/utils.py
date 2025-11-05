@@ -5,6 +5,7 @@ from scipy.spatial.transform import Rotation as R
 import cv2
 import threading
 import queue
+from robosuite.utils import transform_utils as T
 from instruction_templates import InstructionTemplatesLevel1, InstructionTemplatesLevel2, InstructionTemplatesLevel3
 import trimesh
 import xml.etree.ElementTree as ET
@@ -198,12 +199,31 @@ def save_img_info(obs, env, base_dir, cam_names, step, action_vec, rew, done, ro
     #print("gripper position", gp)
     small_obs["state.position_normalized"] = [float(gp)]
     # print("small_obs", small_obs)
+    delta_pos = action_vec[:3]
+    delta_axisangle = action_vec[3:6]
+
+    # Convert relative rotation to quaternion
+    delta_quat = T.axisangle2quat(delta_axisangle)
+
+    # Combine rotations: q_next = delta * current
+    target_quat = T.quat_multiply(delta_quat, eef_quat)
+
+    # Compute next absolute position
+    target_pos = eef_pos + delta_pos
+
+    # Convert quaternion → matrix → Euler angles
+    target_rotmat = T.quat2mat(target_quat)
+    target_euler = T.mat2euler(target_rotmat)
+
+    # Combine into absolute action (pos + rotation)
+    action_abs = np.concatenate([target_pos, target_euler])
 
     # assemble record
     rec = {
         "step":        step,
         "observation": convert_obs(small_obs),
         "action":      action_vec.tolist(),
+        "action_abs":  action_abs.tolist(),
         "reward":      float(rew),
         "done":        bool(done),
     }

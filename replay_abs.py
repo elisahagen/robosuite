@@ -6,11 +6,23 @@ from robosuite import load_composite_controller_config
 from custom_assets.BinToBinTransfer import BinToBinTransfer  
 from rot_utils import rotation_6d_to_matrix, matrix_to_quaternion, quaternion_to_euler
 from robosuite.utils import transform_utils as T
+import json
 from robosuite.controllers.parts.arm.ik import InverseKinematicsController
-from robosuite.utils import transform_utils as T
-# === Load parquet episode ===
-parquet_path = "/home/elisa/Documents/data/robosuite_automated/smoothrot/conv_subtasks/moveplace/s_1/data/chunk-000/episode_000006.parquet"
-df = pd.read_parquet(parquet_path)
+
+json_path = "/home/elisa/Documents/data/robosuite_automated/stage2/teleop_dataset_2_20251105_123949/teleop_demo"
+
+with open(json_path, "r") as f:
+    data = json.load(f)
+
+if isinstance(data, dict) and "data" in data:
+    steps = data["data"]
+else:
+    steps = data  # fallback: file already is a list
+
+# Filter out entries that aren’t step dictionaries
+steps = [s for s in steps if isinstance(s, dict) and "action_abs" in s]
+
+print(f"Loaded {len(steps)} steps from {json_path}")
 
 ctrl_cfg = load_composite_controller_config(controller="BASIC")
 
@@ -58,12 +70,14 @@ obj_body_id = env.sim.model.body_name2id("Box_main")
 #     env.sim.forward()
 
 # === Replay loop ===
-for i, row in df.iterrows():
+print(steps)
+for i, row in enumerate(steps):
+    print(row)
     time.sleep(0.1)  # optional slowdown for visualization
 
     # --- Absolute target from dataset ---
-    abs_action = np.array(row["action.pos_euler"])
-    print(row)
+    print(row, i)
+    abs_action = np.array(row["action_abs"])
     target_pos = abs_action[:3]
     target_euler = abs_action[3:6]
     gripper_action = abs_action[-1]
