@@ -9,7 +9,7 @@ from robosuite.utils import transform_utils as T
 import json
 from robosuite.controllers.parts.arm.ik import InverseKinematicsController
 
-json_path = "/home/elisa/Documents/data/robosuite_automated/stage2/teleop_dataset_2_20251105_123949/teleop_demo"
+json_path = "/home/elisa/Documents/data/robosuite_automated/stage2/teleop_dataset_2_20251105_150043/teleop_demo"
 
 with open(json_path, "r") as f:
     data = json.load(f)
@@ -78,9 +78,9 @@ for i, row in enumerate(steps):
     # --- Absolute target from dataset ---
     print(row, i)
     abs_action = np.array(row["action_abs"])
+    gripper_action = np.array(row["action_abs"][-1])
     target_pos = abs_action[:3]
     target_euler = abs_action[3:6]
-    gripper_action = abs_action[-1]
 
     # --- Current EEF pose from observation ---
     eef_pos = obs["robot0_eef_pos"].copy()

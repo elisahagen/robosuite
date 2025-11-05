@@ -141,7 +141,6 @@ def move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=1)
         if abs(rel_pos[0]) < TOL_XY and abs(rel_pos[1]) < TOL_Y:    
             break
 
-        print(vel_cmd, rel_pos)
         action = {
             "right":         np.array([vel_cmd[0], vel_cmd[1], 0, 0, 0, step_rad]),
             "right_gripper": np.array([-1.0])
@@ -169,7 +168,6 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records, targe
         
         if target is not None: 
             dz = target[2] - np.array(obs["robot0_eef_pos"])[2]
-            print("dz", dz)
         else:
             dz = np.array(obs["Box_to_robot0_eef_pos"])[2]
         
@@ -179,12 +177,10 @@ def move_z_to(env, robot, base_dir, cam_names, step, target, data_records, targe
             tolz = TOL_Z + z_var
 
         if abs(dz) < tolz:
-            print("Break")
             break
 
         rel_pos = np.array(obs["Box_to_robot0_eef_pos"])
         if abs(rel_pos[0]) > TOL_X or abs(rel_pos[1]) > TOL_Y:
-            print(f"XY drift detected (dx={rel_pos[0]:.4f}, dy={rel_pos[1]:.4f}), realigning...")
             step, data_records = move_xy_to_obj(
                 env, robot, base_dir, cam_names, step, data_records, stage=2
             )
@@ -274,7 +270,6 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
         vel_cmd = delta_xy / dist * STEP_XY
     else:
         vel_cmd = np.zeros(2)
-    print("delta beginning", delta_xy)
     for _ in range(num_steps):
         action = {
             "right":         np.array([vel_cmd[0], vel_cmd[1], 0, 0, 0, 0]),
@@ -287,14 +282,12 @@ def move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_rec
 
     current_xy = np.array(obs["robot0_eef_pos"])[:2]
     delta_xy   = np.array(target_xy)[:2] - current_xy
-    print(delta_xy, "delta_xy")
 
     dx = delta_xy[0]
     dy = delta_xy[1]
     while abs(dx) > TOL_X or abs(dy) > TOL_Y: 
         gx, gy = obs["robot0_eef_pos"][:2]
         dx, dy = gx - target_xy[0], gy - target_xy[1]
-        print("dx", dx, dy)
         if abs(dx) < TOL_X: 
             step_x = 0
             step_y = -STEP_XY * np.sign(dy)
@@ -476,7 +469,7 @@ if __name__ == "__main__":
         randomize_cubes=randomize_cubes,
         initialization_noise=None
     )
-    print(env.sim.model._body_name2id)
+    # print(env.sim.model._body_name2id)
     for cam in cam_names:
         save_intrinsic_extrinsic(env, cam, base_dir)
 

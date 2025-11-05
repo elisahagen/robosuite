@@ -166,7 +166,7 @@ def save_intrinsic_extrinsic(env, cam, base_dir):
     with open(save_path, "w") as f_out:
         json.dump(full_cam_info, f_out, indent=2)
 
-    print(f"Saved camera info for {cam} to {save_path}")
+    # print(f"Saved camera info for {cam} to {save_path}")
 
 def convert_depth_buffer_to_meters(depth_buffer, near=0.01, far=10.0):
     z_n = depth_buffer
@@ -184,7 +184,7 @@ def save_img_info(obs, env, base_dir, cam_names, step, action_vec, rew, done, ro
     # print(obs.keys())
     eef_pos   = obs["robot0_eef_pos"]
     eef_quat = obs["robot0_eef_quat"]
-    eef_quat = eef_quat[[3, 0, 1, 2]] 
+    # eef_quat = eef_quat[[3, 0, 1, 2]] 
     small_obs["state.pos_xyzquat_right"] = np.concatenate([eef_pos, eef_quat]).tolist()
 
     # joint state
@@ -201,6 +201,8 @@ def save_img_info(obs, env, base_dir, cam_names, step, action_vec, rew, done, ro
     # print("small_obs", small_obs)
     delta_pos = action_vec[:3]
     delta_axisangle = action_vec[3:6]
+    print("actionshape", action_vec.shape)
+    gripper = action_vec[-1]
 
     # Convert relative rotation to quaternion
     delta_quat = T.axisangle2quat(delta_axisangle)
@@ -216,7 +218,7 @@ def save_img_info(obs, env, base_dir, cam_names, step, action_vec, rew, done, ro
     target_euler = T.mat2euler(target_rotmat)
 
     # Combine into absolute action (pos + rotation)
-    action_abs = np.concatenate([target_pos, target_euler])
+    action_abs = np.concatenate([target_pos, target_euler, [gripper]])
 
     # assemble record
     rec = {
@@ -242,8 +244,8 @@ def save_img_info(obs, env, base_dir, cam_names, step, action_vec, rew, done, ro
     left_pos = sim.data.site_xpos[left_id].copy()
     right_pos = sim.data.site_xpos[right_id].copy()
 
-    print("Left keypoint:", left_pos)
-    print("Right keypoint:", right_pos)
+    # print("Left keypoint:", left_pos)
+    # print("Right keypoint:", right_pos)
 
     # Append to your data record (raw 3D)
     data_records.append({
