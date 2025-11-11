@@ -1,31 +1,49 @@
-import json
+import pandas as pd
 import numpy as np
-import os
+import time
+import torch
 from robosuite import load_composite_controller_config
 from custom_assets.BinToBinTransfer import BinToBinTransfer  
-from datetime import datetime
-import time
+from rot_utils import rotation_6d_to_matrix, matrix_to_quaternion, quaternion_to_euler
 from robosuite.utils import transform_utils as T
+import json
+from robosuite.controllers.parts.arm.ik import InverseKinematicsController
 
-base_dir = "/home/elisa/Documents/data/robosuite_automated/smoothrot/s_2/teleop_dataset_1_20250903_171821/"  
-demo_file = os.path.join(base_dir, "teleop_demo")
-with open(demo_file, "r") as f:
-    demo_data = json.load(f)["data"]
+json_path = "/home/elisa/Documents/data/robosuite_automated/stage2/teleop_dataset_2_20251105_150043/teleop_demo"
 
-ctrl_cfg = load_composite_controller_config(controller="BASIC")
-print("Available body parts:", ctrl_cfg["body_parts"]["right"].keys())
-ctrl_cfg["body_parts"]["right"]["input_type"] = "absolute"  # for JointPosition-based parts
-ctrl_cfg["body_parts"]["right"]["control_delta"] = False     # for IK-based parts
+with open(json_path, "r") as f:
+    data = json.load(f)
+
+if isinstance(data, dict) and "data" in data:
+    steps = data["data"]
+else:
+    steps = data  # fallback: file already is a list
+
+# Filter out entries that aren’t step dictionaries
+steps = [s for s in steps if isinstance(s, dict) and "action_abs" in s]
+
+print(f"Loaded {len(steps)} steps from {json_path}")
+
+ctrl_cfg = load_composite_controller_config(controller= "WHOLE_BODY_IK")
+
+
+ctrl_cfg["body_parts"]["right"]["control_delta"] = False   # because dataset is absolute
+ctrl_cfg["body_parts"]["right"]["input_type"] = "absolute"
 ctrl_cfg["body_parts"]["right"]["input_ref_frame"] = "world"
+# ctrl_cfg["body_parts"]["right"]["input_ref_frame"] = "eef"
+ctrl_cfg["body_parts"]["right"]["use_normalized_input"] = False
+ctrl_cfg["body_parts"]["right"]["scale_action"] = False
+# The Panda arm = "right" in BASIC composite setup
+# ctrl_cfg["body_parts"]["right"]["type"] = "IK_POSE"
+# ctrl_cfg["body_parts"]["right"]["control_delta"] = False
+# ctrl_cfg["body_parts"]["right"]["input_type"] = "absolute"
+# ctrl_cfg["body_parts"]["right"]["input_ref_frame"] = "world"
+cam_names = [
+    "left_side_view", "right_side_view",
+    "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"
+]
 
-cam_names = ["left_side_view", "right_side_view",
-             "robot0_eye_in_hand_front", "robot0_eye_in_hand_back"]
-
-init_obs = demo_data[0]["observation"]
-bread_pos = np.array(init_obs["Box_pos"])
-bread_quat = np.array(init_obs["Box_quat"])
-bread_quat = bread_quat[[3, 0, 1, 2]] 
-
+# Initialize environment
 env = BinToBinTransfer(
     robots="Panda",
     target_obj="box",
@@ -36,54 +54,71 @@ env = BinToBinTransfer(
     camera_names=cam_names,
     control_freq=10,
     ignore_done=True,
-    hard_reset=True, 
-    initialization_noise=None,  
+    hard_reset=True,
+    initialization_noise=None,
 )
-
 
 obs = env.reset()
 
 obj_body_id = env.sim.model.body_name2id("Box_main")  
 
-env.sim.model.body_pos[obj_body_id] = bread_pos
-env.sim.model.body_quat[obj_body_id] = bread_quat  
 
-joint_name = "Box_joint0"  
-env.sim.data.set_joint_qpos(joint_name, np.concatenate([bread_pos, bread_quat]))
-env.sim.forward()
+# # Optionally: set bread pose from first observation state if available
+# if "observation.state.pos_xyzquat_right" in df.columns:
+#     bread_state = np.array(df.iloc[0]["observation.state.pos_xyzquat_right"])
+#     print("bread_state", bread_state.shape)
+#     bread_pos, bread_quat = bread_state[:3], bread_state[3:]
+#     bread_quat = bread_quat[[3, 0, 1, 2]]  # xyzw -> wxyz if needed
 
-for i, step_data in enumerate(demo_data):
-    time.sleep(0.1)
-    action = np.array(step_data["action"])
-    eef_pos = obs["robot0_eef_pos"].copy()
-    eef_quat = obs["robot0_eef_quat"].copy()
+#     obj_body_id = env.sim.model.body_name2id("Bread_main")  
+#     env.sim.model.body_pos[obj_body_id] = bread_pos
+#     env.sim.model.body_quat[obj_body_id] = bread_quat
+#     env.sim.data.set_joint_qpos("Bread_joint0", np.concatenate([bread_pos, bread_quat]))
+#     env.sim.forward()
 
-    print("action", action, "\n eef", eef_pos)
-    # --- Compute absolute target pose (as robosuite controller does internally) ---
-    delta_pos = action[:3]
-    delta_rot_axisangle = action[3:6]
+# === Replay loop ===
+print(steps)
+for i, row in enumerate(steps):
+    print(row)
+    time.sleep(0.1)  # optional slowdown for visualization
 
-    # Convert delta rotation to quaternion and combine
-    delta_quat = T.axisangle2quat(delta_rot_axisangle)
-    target_quat = T.quat_multiply(delta_quat, eef_quat)
-    target_pos = eef_pos + delta_pos
+    # --- Absolute target from dataset ---
+    # # print(row, i)
+    # abs_action = np.array(row["action_abs"])
+    # gripper_action = np.array(row["action_abs"][-1])
+    # target_pos = abs_action[:3]
+    # target_euler = abs_action[3:6]
 
-    # Controller expects axis-angle, not quaternion
-    target_axisangle = np.zeros(3) #T.quat2axisangle(target_quat)
-    abs_action = np.hstack((target_pos, target_axisangle))
+    # # --- Current EEF pose from observation ---
+    # eef_pos = obs["robot0_eef_pos"].copy()
+    # eef_quat = obs["robot0_eef_quat"].copy()
+    # eef_mat = T.quat2mat(eef_quat)
+    # eef_euler = T.mat2euler(eef_mat)
 
-    # Build composite controller input
-    all_action = {
-        "arm": np.hstack((target_pos, target_axisangle)),  # Absolute 6D pose
-        "gripper": np.array([action[-1]]),                 # Gripper action
-    }
-    # Flatten for robosuite
-    action_vec = action #env.robots[0].create_action_vector(action)
+    # # --- Compute relative deltas ---
+    # delta_pos = target_pos - eef_pos
 
-    # Apply to environment
-    obs, reward, done, info = env.step(action_vec)
-    # env.render()
-    # env.sim.forward()
+    # # Convert orientation difference robustly via quaternions
+    # target_mat = T.euler2mat(target_euler)
+    # target_quat = T.mat2quat(target_mat)
+    # delta_quat = T.quat_multiply(target_quat, T.quat_inverse(eef_quat))
+    # delta_axisangle = T.quat2axisangle(delta_quat)
+
+    # # --- Combine into full relative action ---
+    # rel_action = np.concatenate([delta_pos, delta_axisangle, [gripper_action]])
+
+    eef_pos = row["observation"]["robot0_eef_pos"].copy()
+    eef_quat = np.array(row["observation"]["robot0_eef_quat"], dtype=float)
+
+    # Convert quaternion to axis–angle (WholeBodyIK expects 6D pose [x, y, z, rx, ry, rz])
+    eef_axisangle = T.quat2axisangle(eef_quat)
+
+    # --- Build absolute action directly from current EE pose ---
+    abs_action = np.concatenate([eef_pos, eef_axisangle, [-1.0]])  # gripper closed (-1.0) or open (+1.0)
+
+    print(f"Step {i} → sending EE absolute pose:", abs_action)
+
+    obs, reward, done, info = env.step(abs_action)
     env.render()
 
 print("Replay finished.")

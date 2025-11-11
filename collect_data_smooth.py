@@ -382,46 +382,77 @@ def auto_pick_and_place(env, robot, write_q, base_dir, cam_names, level, target_
     except:
         target_xy = [0.1, 0.14, 0.6]
     # 1) move above object
-    step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
-    if abort_if_too_many_steps(): return
 
-    # 2b) align position again
-    step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=2)
-    if abort_if_too_many_steps(): return
+    obs = env.reset()
+    robot = env.robots[0]
 
-    # 3) descend to object
-    step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height)
-    if abort_if_too_many_steps(): return
+    # record current absolute pose
+    home_pos = obs["robot0_eef_pos"].copy()
+    home_quat = obs["robot0_eef_quat"].copy()          # w,x,y,z
+    home_axis = T.quat2axisangle(home_quat)
 
-    # 4) close gripper
-    for i in range(10):
+    # get target absolute pose (the box position + small z offset)
+    box_pos = obs["Box_pos"].copy()
+    target_pos = box_pos + np.array([0, 0, 0.04])      # hover 10 cm above box
+    target_quat = home_quat                            # keep same orientation
+    target_axis = T.quat2axisangle(target_quat)
+
+    # move toward box in absolute coordinates
+    abs_action_to_box = np.concatenate([target_pos, target_axis, [-1.0]])
+    for _ in range(50):
+        obs, _, _, _ = env.step(abs_action_to_box)
+        env.render()
+
+    # pause
+    for _ in range(20):
+        env.render()
+
+    # move back to the home pose
+    abs_action_home = np.concatenate([home_pos, home_axis, [-1.0]])
+    for _ in range(50):
+        obs, _, _, _ = env.step(abs_action_home)
+        env.render()
+
+    # step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records)
+    # if abort_if_too_many_steps(): return
+
+    # # 2b) align position again
+    # step, data_records = move_xy_to_obj(env, robot, base_dir, cam_names, step, data_records, stage=2)
+    # if abort_if_too_many_steps(): return
+
+    # # 3) descend to object
+    # step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height)
+    # if abort_if_too_many_steps(): return
+
+    # # 4) close gripper
+    # for i in range(10):
         
-        action = {
-            "right":         np.array([0,0,0, 0,0,0 ]),
-            "right_gripper": np.array([+1.0]),
-        }
+    #     action = {
+    #         "right":         np.array([0,0,0, 0,0,0 ]),
+    #         "right_gripper": np.array([+1.0]),
+    #     }
         
-        action = robot.create_action_vector(action)
+    #     action = robot.create_action_vector(action)
         
-        obs,rew, done,  _ = env.step(action)
-        save_img_info(obs, env, base_dir, cam_names, step, action, rew, done, robot, data_records)
-        if abort_if_too_many_steps(): return
-        step += 1
+    #     obs,rew, done,  _ = env.step(action)
+    #     save_img_info(obs, env, base_dir, cam_names, step, action, rew, done, robot, data_records)
+    #     if abort_if_too_many_steps(): return
+    #     step += 1
 
-    # 5) lift up 15cm
-    target =  np.array([0,0,0.13])
-    step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height)
+    # # 5) lift up 15cm
+    # target =  np.array([0,0,0.13])
+    # step, data_records = move_z_to(env, robot, base_dir, cam_names, step, target, data_records, target_obj_height)
 
-    # 6) move over bin at X=0.3, Y=0
-    step, data_records = move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records)
+    # # 6) move over bin at X=0.3, Y=0
+    # step, data_records = move_xy_to_target(env, robot, base_dir, cam_names, step, target_xy, data_records)
 
-    nclass = 6
-    target_object = target_obj
-    save_json(os.path.join(base_dir, "teleop_demo.json"), data_records, nclass)
-    instr = get_instruction(base_dir, target_object, level=level, target_position=target_xy)
-    save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
+    # nclass = 6
+    # target_object = target_obj
+    # save_json(os.path.join(base_dir, "teleop_demo.json"), data_records, nclass)
+    # instr = get_instruction(base_dir, target_object, level=level, target_position=target_xy)
+    # save_json(os.path.join(base_dir, "instruction.json"), {"instruction": instr}, nclass)
 
-    print("Completed automatic pick-and-place")
+    # print("Completed automatic pick-and-place")
 
 
 if __name__ == "__main__":
@@ -448,14 +479,17 @@ if __name__ == "__main__":
     write_q = queue.Queue()
     threading.Thread(target=writer_loop, args=(write_q,), daemon=True).start()
 
-    ctrl_cfg = load_composite_controller_config(controller="BASIC")
+    ctrl_cfg = load_composite_controller_config(controller="WHOLE_BODY_IK")
+    ctrl_cfg["body_parts"]["right"]["control_delta"] = False
+    ctrl_cfg["body_parts"]["right"]["input_type"] = "absolute"
+
 
     # 3) build env 
     env = BinToBinTransfer(
         target_obj=target_obj,
         robots="Panda",
         controller_configs=ctrl_cfg,
-        has_renderer=False,
+        has_renderer=True,
         has_offscreen_renderer=True,
         use_camera_obs=True,
         camera_names=cam_names,
